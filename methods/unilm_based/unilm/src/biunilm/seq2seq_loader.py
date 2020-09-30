@@ -63,53 +63,61 @@ class Seq2SeqDataset(torch.utils.data.Dataset):
         self.bi_uni_pipeline = bi_uni_pipeline
         self.batch_size = batch_size
         self.sent_reverse_order = sent_reverse_order
-
+        #args
+        max_path_len = 8
+        max_path = 8
+        cls_token = tokenizer.convert_tokens_to_ids(["[CLS]"])[0]
+        sep_token = tokenizer.convert_tokens_to_ids(["[SEP]"])[0]
+        pad_token = tokenizer.convert_tokens_to_ids(["[PAD]"])[0]
+        
         # read the file into memory
         self.ex_list = []
         if file_oracle is None:
             with open(file_src, "r", encoding='utf-8') as f_src,\
                     open(file_tgt, "r", encoding='utf-8') as f_tgt,\
-                    open(file_cs, "r", encoding='utf-8') as f_cs:
-                for src, tgt, cs_str in zip(f_src, f_tgt, cs):
+                    open(file_cs, "r", encoding='utf-8') as f_cs:            
+                for src, tgt, cs_str in zip(f_src, f_tgt, f_cs):
                     src_tk = tokenizer.tokenize(src.strip())
                     tgt_tk = tokenizer.tokenize(tgt.strip())
                     assert len(src_tk) > 0
                     assert len(tgt_tk) > 0
-                    assert len(cs_tk) > 0
                     cs = json.loads(cs_str)
+                    concepts = []
+                    flat_list = []
+                    concepts_mask = []
                     for c in cs:
-				        cs_tokens = []
-				        cs_tokens.extend(tokenizer.tokenize(c[0].replace('_', ' ')))
-				        rel =  COMMONSENSE_MAPPING[c[1]]
-				        cs_tokens.extend(tokenizer.tokenize(rel, add_prefix_space=True))
-				        cs_tokens.extend(tokenizer.tokenize(c[2].replace('_', ' '), add_prefix_space=True))
-				        if len(c) > 3:
-					        rel = COMMONSENSE_MAPPING[c[3]]
-					        cs_tokens.extend(tokenizer.tokenize(rel, add_prefix_space=True))
-					        cs_tokens.extend(tokenizer.tokenize(c[4].replace('_', ' '), add_prefix_space=True))
-				        if cs_tokens in flat_list:
-					        continue
-				        if len(cs_tokens) > max_path_len:
-					        cs_tokens = cs_tokens[:max_path_len]
-				        flat_list.append(cs_tokens)
-				        concept_ids = tokenizer.convert_tokens_to_ids(cs_tokens)
-				        concept_ids = [cls_token] + concept_ids + [sep_token]
-				        concept_path_mask = [1]*len(concept_ids)
-				        while len(concept_ids) < max_path_len+2:
-					        concept_ids.append(pad_token)
-					        concept_path_mask.append(0)
-				        concepts.append(concept_ids)
-				        concepts_mask_full.append(concept_path_mask)
-				        concepts_mask.append(1)
-				        if len(concepts) == max_path:
-					        break
-			        while len(concepts) < max_path:
-				        concepts.append([cls_token, sep_token]+[pad_token]*max_path_len)
-				        concepts_mask_full.append([1, 1]+[0]*max_path_len)
-				        concepts_mask.append(0)
-
-
-                    self.ex_list.append((src_tk, tgt_tk, cs_tk, cs_mask))
+                        cs_tokens = []
+                        cs_tokens.extend(tokenizer.tokenize(c[0].replace('_', ' ')))
+                        rel =  COMMONSENSE_MAPPING[c[1]]
+                        cs_tokens.extend(tokenizer.tokenize(" "))
+                        cs_tokens.extend(tokenizer.tokenize(rel))
+                        cs_tokens.extend(tokenizer.tokenize(" "))
+                        cs_tokens.extend(tokenizer.tokenize(c[2].replace('_', ' ')))
+                        if len(c) > 3:
+                            rel = COMMONSENSE_MAPPING[c[3]]
+                            cs_tokens.extend(tokenizer.tokenize(" "))
+                            cs_tokens.extend(tokenizer.tokenize(rel))
+                            cs_tokens.extend(tokenizer.tokenize(" "))
+                            cs_tokens.extend(tokenizer.tokenize(c[4].replace('_', ' ')))
+                        if cs_tokens in flat_list:
+                            continue
+                        if len(cs_tokens) > max_path_len:
+                            cs_tokens = cs_tokens[:max_path_len]
+                        flat_list.append(cs_tokens)
+                        concept_ids = tokenizer.convert_tokens_to_ids(cs_tokens)
+                        concept_ids = [cls_token] + concept_ids + [sep_token]
+                        concept_path_mask = [1]*len(concept_ids)
+                        while len(concept_ids) < max_path_len+2:
+                            concept_ids.append(pad_token)
+                            concept_path_mask.append(0)
+                        concepts.append(concept_ids)
+                        concepts_mask.append(1)
+                        if len(concepts) == max_path:
+                            break
+                    while len(concepts) < max_path:
+                        concepts.append([cls_token, sep_token]+[pad_token]*max_path_len)
+                        concepts_mask.append(0)
+                    self.ex_list.append((src_tk, tgt_tk, concepts, concepts_mask))
         else:
             with open(file_src, "r", encoding='utf-8') as f_src, \
                     open(file_tgt, "r", encoding='utf-8') as f_tgt, \
@@ -176,7 +184,7 @@ class Preprocess4Seq2seq(Pipeline):
         self.pos_shift = pos_shift
 
     def __call__(self, instance):
-        tokens_a, tokens_b, cs_tk, cs_mark = instance[:4]
+        tokens_a, tokens_b, cs_tk, cs_mask = instance[:4]
 
         if self.pos_shift:
             tokens_b = ['[S2S_SOS]'] + tokens_b

@@ -20,7 +20,7 @@ import torch
 from torch import nn
 from torch.nn import CrossEntropyLoss, MSELoss
 import torch.nn.functional as F
-import pytorch_pretrained_bert.hykas as kykas
+import pytorch_pretrained_bert.hykas as hykas
 
 from .file_utils import cached_path
 from .loss import LabelSmoothingLoss
@@ -495,12 +495,11 @@ class BertEncoder(nn.Module):
         if (prev_embedding is not None) and (prev_encoded_layers is not None):
             history_states = prev_embedding
             for i, layer_module in enumerate(self.layer):
-                if i==1 {
+                if i==1:
                     path_len = concepts.size(3)
                     cs_embeddings = self.cs_embeddings(concepts.view(-1, path_len))
                     concepts_mask = concepts_mask.view(batch_size*num_cand, -1)
                     history_states = self.InjectLayer(history_states, cs_embeddings, attention_mask, concepts_mask, concepts.shape)
-                }
                 hidden_states = layer_module(
                     hidden_states, attention_mask, history_states=history_states, mask_qkv=mask_qkv, seg_ids=seg_ids)
                 if output_all_encoded_layers:
@@ -1050,8 +1049,7 @@ class BertModel(PreTrainedBertModel):
     def forward(self, input_ids, token_type_ids=None, attention_mask=None, output_all_encoded_layers=True, mask_qkv=None, task_idx=None,
             concepts=None, concepts_mask=None):
         extended_attention_mask = self.get_extended_attention_mask(
-            input_ids, token_type_ids, attention_mask,
-            concepts=None, concepts_mask=None)
+            input_ids, token_type_ids, attention_mask)
 
         embedding_output = self.embeddings(
             input_ids, token_type_ids, task_idx=task_idx)

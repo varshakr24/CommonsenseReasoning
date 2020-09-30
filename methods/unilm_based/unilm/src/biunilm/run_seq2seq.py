@@ -217,7 +217,7 @@ def main():
                         help="Using position shift for fine-tuning.")
 
     args = parser.parse_args()
-
+    print(args.model_recover_path)
     assert Path(args.model_recover_path).exists(
     ), "--model_recover_path doesn't exist"
 
@@ -429,11 +429,11 @@ def main():
                 if args.has_sentence_oracle:
                     input_ids, segment_ids, input_mask, mask_qkv, lm_label_ids, masked_pos, masked_weights, is_next, task_idx, oracle_pos, oracle_weights, oracle_labels,cs_inp, cs_mask, cs_mask_full = batch
                 else:
-                    input_ids, segment_ids, input_mask, mask_qkv, lm_label_ids, masked_pos, masked_weights, is_next, task_idx,cs_inp, cs_mask, cs_mask_full = batch
+                    input_ids, segment_ids, input_mask, mask_qkv, lm_label_ids, masked_pos, masked_weights, is_next, task_idx,cs_inp, cs_mask = batch
                     oracle_pos, oracle_weights, oracle_labels = None, None, None
                 loss_tuple = model(input_ids, segment_ids, input_mask, lm_label_ids, is_next, masked_pos=masked_pos, masked_weights=masked_weights, task_idx=task_idx, masked_pos_2=oracle_pos, masked_weights_2=oracle_weights,
                                    masked_labels_2=oracle_labels, mask_qkv=mask_qkv,
-                                   concepts=concepts, concepts_mask=cs_mask)
+                                   concepts=cs_inp, concepts_mask=cs_mask)
                 masked_lm_loss, next_sentence_loss = loss_tuple
                 if n_gpu > 1:    # mean() to average on multi-gpu.
                     # loss = loss.mean()
