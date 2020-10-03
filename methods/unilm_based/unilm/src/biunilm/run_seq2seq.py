@@ -468,7 +468,7 @@ def main():
                     global_step += 1
 
             # Save a trained model
-            if (args.local_rank == -1 or torch.distributed.get_rank() == 0):
+            if ((args.local_rank == -1 or torch.distributed.get_rank() == 0) and i_epoch%5==0):
                 logger.info(
                     "** ** * Saving fine-tuned model and optimizer ** ** * ")
                 model_to_save = model.module if hasattr(
