@@ -24,6 +24,8 @@ from pytorch_pretrained_bert.optimization import BertAdam, warmup_linear
 from nn.data_parallel import DataParallelImbalance
 import biunilm.seq2seq_loader as seq2seq_loader
 
+from commonsense_mapping import COMMONSENSE_MAPPING
+
 
 logging.basicConfig(format='%(asctime)s - %(levelname)s - %(name)s -   %(message)s',
                     datefmt='%m/%d/%Y %H:%M:%S',
@@ -45,7 +47,50 @@ def ascii_print(text):
     text = text.encode("ascii", "ignore")
     print(text)
 
-
+def cs_tokenize(cs_str, tokenizer):
+    cs = json.loads(cs_str)
+    concepts = []
+    flat_list = []
+    concepts_mask = []
+    max_path_len = 8
+    max_path = 8
+    cls_token = tokenizer.convert_tokens_to_ids(["[CLS]"])[0]
+    sep_token = tokenizer.convert_tokens_to_ids(["[SEP]"])[0]
+    pad_token = tokenizer.convert_tokens_to_ids(["[PAD]"])[0]
+    for c in cs:
+        cs_tokens = []
+        cs_tokens.extend(tokenizer.tokenize(c[0].replace('_', ' ')))
+        rel =  COMMONSENSE_MAPPING[c[1]]
+        cs_tokens.extend(tokenizer.tokenize(" "))
+        cs_tokens.extend(tokenizer.tokenize(rel))
+        cs_tokens.extend(tokenizer.tokenize(" "))
+        cs_tokens.extend(tokenizer.tokenize(c[2].replace('_', ' ')))
+        if len(c) > 3:
+            rel = COMMONSENSE_MAPPING[c[3]]
+            cs_tokens.extend(tokenizer.tokenize(" "))
+            cs_tokens.extend(tokenizer.tokenize(rel))
+            cs_tokens.extend(tokenizer.tokenize(" "))
+            cs_tokens.extend(tokenizer.tokenize(c[4].replace('_', ' ')))
+        if cs_tokens in flat_list:
+            continue
+        if len(cs_tokens) > max_path_len:
+            cs_tokens = cs_tokens[:max_path_len]
+        flat_list.append(cs_tokens)
+        concept_ids = tokenizer.convert_tokens_to_ids(cs_tokens)
+        concept_ids = [cls_token] + concept_ids + [sep_token]
+        concept_path_mask = [1]*len(concept_ids)
+        while len(concept_ids) < max_path_len+2:
+            concept_ids.append(pad_token)
+            concept_path_mask.append(0)
+        concepts.append(concept_ids)
+        concepts_mask.append(1)
+        if len(concepts) == max_path:
+            break
+    while len(concepts) < max_path:
+        concepts.append([cls_token, sep_token]+[pad_token]*max_path_len)
+        concepts_mask.append(0)
+    return concepts, concepts_mask
+        
 def main():
     parser = argparse.ArgumentParser()
 
@@ -186,9 +231,19 @@ def main():
             if args.subset > 0:
                 logger.info("Decoding subset: %d", args.subset)
                 input_lines = input_lines[:args.subset]
+        with open(args.cs_input, encoding="utf-8") as cs_fin:
+            cs_input_lines = [x.strip() for x in cs_fin.readlines()]
+            if args.subset > 0:
+                logger.info("Decoding subset: %d", args.subset)
+                cs_input_lines = cs_input_lines[:args.subset]
         data_tokenizer = WhitespaceTokenizer() if args.tokenized_input else tokenizer
         input_lines = [data_tokenizer.tokenize(
             x)[:max_src_length] for x in input_lines]
+        cs_input_lines = [cs_tokenize(x,data_tokenizer) for x in cs_input_lines]
+        zipped = list(zip(input_lines,cs_input_lines))
+        merged_input = []
+        for i in zipped:
+            merged_input.append(i[0].extend(i[1]))
         input_lines = sorted(list(enumerate(input_lines)),
                              key=lambda x: -len(x[1]))
         output_lines = [""] * len(input_lines)
@@ -211,7 +266,7 @@ def main():
                         instances)
                     batch = [
                         t.to(device) if t is not None else None for t in batch]
-                    input_ids, token_type_ids, position_ids, input_mask, mask_qkv, task_idx = batch
+                    input_ids, token_type_ids, position_ids, input_mask, mask_qkv, task_idx, cs_inp, cs_mask = batch
                     traces = model(input_ids, token_type_ids,
                                    position_ids, input_mask, task_idx=task_idx, mask_qkv=mask_qkv)
                     if args.beam_size > 1:

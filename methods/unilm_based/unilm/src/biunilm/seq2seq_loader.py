@@ -383,7 +383,7 @@ class Preprocess4Seq2seqDecoder(Pipeline):
         self.pos_shift = pos_shift
 
     def __call__(self, instance):
-        tokens_a, max_a_len = instance
+        tokens_a, max_a_len, concepts, concepts_mask = instance
 
         # Add Special Tokens
         if self.s2s_special_token:
@@ -449,4 +449,4 @@ class Preprocess4Seq2seqDecoder(Pipeline):
         input_mask[second_st:second_end, second_st:second_end].copy_(
             self._tril_matrix[:second_end-second_st, :second_end-second_st])
 
-        return (input_ids, segment_ids, position_ids, input_mask, mask_qkv, self.task_idx)
+        return (input_ids, segment_ids, position_ids, input_mask, mask_qkv, self.task_idx, concepts, concepts_mask)
