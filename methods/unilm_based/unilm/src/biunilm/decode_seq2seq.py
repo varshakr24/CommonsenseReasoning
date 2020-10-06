@@ -244,8 +244,8 @@ def main():
         merged_input = []
         for i in zipped:
             merged_input.append(i[0].extend(i[1]))
-        input_lines = sorted(list(enumerate(input_lines)),
-                             key=lambda x: -len(x[1]))
+        input_lines = sorted(list(enumerate(merged_input)),
+                             key=lambda x: -len(x[1][0]))
         output_lines = [""] * len(input_lines)
         score_trace_list = [None] * len(input_lines)
         total_batch = math.ceil(len(input_lines) / args.batch_size)
@@ -254,11 +254,11 @@ def main():
             while next_i < len(input_lines):
                 _chunk = input_lines[next_i:next_i + args.batch_size]
                 buf_id = [x[0] for x in _chunk]
-                buf = [x[1] for x in _chunk]
+                buf = [x[1][0] for x in _chunk]
                 next_i += args.batch_size
                 max_a_len = max([len(x) for x in buf])
                 instances = []
-                for instance in [(x, max_a_len) for x in buf]:
+                for instance in [(x[0], max_a_len, x[1], x[2]) for x in buf]:
                     for proc in bi_uni_pipeline:
                         instances.append(proc(instance))
                 with torch.no_grad():
@@ -268,7 +268,8 @@ def main():
                         t.to(device) if t is not None else None for t in batch]
                     input_ids, token_type_ids, position_ids, input_mask, mask_qkv, task_idx, cs_inp, cs_mask = batch
                     traces = model(input_ids, token_type_ids,
-                                   position_ids, input_mask, task_idx=task_idx, mask_qkv=mask_qkv)
+                                   position_ids, input_mask, task_idx=task_idx, mask_qkv=mask_qkv,
+                                   cs_inp,cs_mask)
                     if args.beam_size > 1:
                         traces = {k: v.tolist() for k, v in traces.items()}
                         output_ids = traces['pred_seq']
