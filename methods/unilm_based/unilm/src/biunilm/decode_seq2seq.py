@@ -25,7 +25,7 @@ from nn.data_parallel import DataParallelImbalance
 import biunilm.seq2seq_loader as seq2seq_loader
 
 from commonsense_mapping import COMMONSENSE_MAPPING
-
+import json 
 
 logging.basicConfig(format='%(asctime)s - %(levelname)s - %(name)s -   %(message)s',
                     datefmt='%m/%d/%Y %H:%M:%S',
@@ -117,6 +117,7 @@ def main():
     parser.add_argument('--amp', action='store_true',
                         help="Whether to use amp for fp16")
     parser.add_argument("--input_file", type=str, help="Input file")
+    parser.add_argument("--cs_input", type=str, help="CS Input file", required=True)
     parser.add_argument('--subset', type=int, default=0,
                         help="Decode a subset of the input dataset.")
     parser.add_argument("--output_file", type=str, help="output file")
@@ -241,10 +242,8 @@ def main():
             x)[:max_src_length] for x in input_lines]
         cs_input_lines = [cs_tokenize(x,data_tokenizer) for x in cs_input_lines]
         zipped = list(zip(input_lines,cs_input_lines))
-        merged_input = []
-        for i in zipped:
-            merged_input.append(i[0].extend(i[1]))
-        input_lines = sorted(list(enumerate(merged_input)),
+        
+        input_lines = sorted(list(enumerate(zipped)),
                              key=lambda x: -len(x[1][0]))
         output_lines = [""] * len(input_lines)
         score_trace_list = [None] * len(input_lines)
@@ -254,11 +253,11 @@ def main():
             while next_i < len(input_lines):
                 _chunk = input_lines[next_i:next_i + args.batch_size]
                 buf_id = [x[0] for x in _chunk]
-                buf = [x[1][0] for x in _chunk]
+                buf = [x[1] for x in _chunk]
                 next_i += args.batch_size
-                max_a_len = max([len(x) for x in buf])
+                max_a_len = max([len(x[0]) for x in buf])
                 instances = []
-                for instance in [(x[0], max_a_len, x[1], x[2]) for x in buf]:
+                for instance in [(x[0], max_a_len, x[1][0], x[1][1]) for x in buf]:
                     for proc in bi_uni_pipeline:
                         instances.append(proc(instance))
                 with torch.no_grad():
@@ -269,7 +268,7 @@ def main():
                     input_ids, token_type_ids, position_ids, input_mask, mask_qkv, task_idx, cs_inp, cs_mask = batch
                     traces = model(input_ids, token_type_ids,
                                    position_ids, input_mask, task_idx=task_idx, mask_qkv=mask_qkv,
-                                   cs_inp,cs_mask)
+                                   concepts=cs_inp,concepts_mask=cs_mask)
                     if args.beam_size > 1:
                         traces = {k: v.tolist() for k, v in traces.items()}
                         output_ids = traces['pred_seq']

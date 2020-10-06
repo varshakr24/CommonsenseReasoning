@@ -481,6 +481,7 @@ class BertLayer(nn.Module):
 class BertEncoder(nn.Module):
     def __init__(self, config):
         super(BertEncoder, self).__init__()
+        self.cs_embeddings = BertEmbeddings(config)
         layer = BertLayer(config)
         self.layer = nn.ModuleList([copy.deepcopy(layer)
                                     for _ in range(config.num_hidden_layers)])
@@ -496,7 +497,7 @@ class BertEncoder(nn.Module):
             history_states = prev_embedding
             for i, layer_module in enumerate(self.layer):
                 if i==1:
-                    path_len = concepts.size(3)
+                    path_len = 8
                     cs_embeddings = self.cs_embeddings(concepts.view(-1, path_len))
                     concepts_mask = concepts_mask.view(batch_size*num_cand, -1)
                     history_states = self.InjectLayer(history_states, cs_embeddings, attention_mask, concepts_mask, concepts.shape)
@@ -507,7 +508,12 @@ class BertEncoder(nn.Module):
                 if prev_encoded_layers is not None:
                     history_states = prev_encoded_layers[i]
         else:
-            for layer_module in self.layer:
+            for i,layer_module in enumerate(self.layer):
+                if i==1:
+                    path_len = 8
+                    cs_embeddings = self.cs_embeddings(concepts.view(-1, path_len))
+                    concepts_mask = concepts_mask.view(batch_size*num_cand, -1)
+                    history_states = self.InjectLayer(history_states, cs_embeddings, attention_mask, concepts_mask, concepts.shape)
                 hidden_states = layer_module(
                     hidden_states, attention_mask, mask_qkv=mask_qkv, seg_ids=seg_ids)
                 if output_all_encoded_layers:
