@@ -516,8 +516,6 @@ class BertEncoder(nn.Module):
                     cs_embeddings = self.cs_embeddings(concepts.view(-1, path_len))
                     
                     hidden_states = self.InjectLayer(hidden_states, cs_embeddings, token_a_mask.view(-1,attention_mask.size(-1)), concepts_mask, concepts.shape)
-                    print("inject done")
-                print(i,len(self.layer))
                 hidden_states = layer_module(
                     hidden_states, attention_mask, mask_qkv=mask_qkv, seg_ids=seg_ids)
                 if output_all_encoded_layers:
