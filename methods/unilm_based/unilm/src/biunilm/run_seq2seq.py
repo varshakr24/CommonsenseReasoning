@@ -424,16 +424,20 @@ def main():
             iter_bar = tqdm(train_dataloader, desc='Iter (loss=X.XXX)',
                             disable=args.local_rank not in (-1, 0))
             for step, batch in enumerate(iter_bar):
+                print("batch starting")
                 batch = [
                     t.to(device) if t is not None else None for t in batch]
                 if args.has_sentence_oracle:
-                    input_ids, segment_ids, input_mask, mask_qkv, lm_label_ids, masked_pos, masked_weights, is_next, task_idx, oracle_pos, oracle_weights, oracle_labels,cs_inp, cs_mask, cs_mask_full = batch
+                    input_ids, segment_ids, input_mask, token_a_mask, mask_qkv, lm_label_ids, masked_pos, masked_weights, is_next, task_idx, oracle_pos, oracle_weights, oracle_labels,cs_inp, cs_mask, cs_mask_full = batch
+                    
                 else:
-                    input_ids, segment_ids, input_mask, mask_qkv, lm_label_ids, masked_pos, masked_weights, is_next, task_idx,cs_inp, cs_mask = batch
+                    input_ids, segment_ids, input_mask, token_a_mask, mask_qkv, lm_label_ids, masked_pos, masked_weights, is_next, task_idx,cs_inp, cs_mask = batch
                     oracle_pos, oracle_weights, oracle_labels = None, None, None
-                loss_tuple = model(input_ids, segment_ids, input_mask, lm_label_ids, is_next, masked_pos=masked_pos, masked_weights=masked_weights, task_idx=task_idx, masked_pos_2=oracle_pos, masked_weights_2=oracle_weights,
+                
+                loss_tuple = model(input_ids, segment_ids, input_mask, token_a_mask, lm_label_ids, is_next, masked_pos=masked_pos, masked_weights=masked_weights, task_idx=task_idx, masked_pos_2=oracle_pos, masked_weights_2=oracle_weights,
                                    masked_labels_2=oracle_labels, mask_qkv=mask_qkv,
                                    concepts=cs_inp, concepts_mask=cs_mask)
+                print("got loss")
                 masked_lm_loss, next_sentence_loss = loss_tuple
                 if n_gpu > 1:    # mean() to average on multi-gpu.
                     # loss = loss.mean()

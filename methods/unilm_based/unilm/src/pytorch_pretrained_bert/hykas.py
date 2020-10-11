@@ -36,7 +36,7 @@ class KVMem_Att_layer(nn.Module):
 		self.att_dropout = nn.Dropout(config.attention_probs_dropout_prob)
 
 		self.output = nn.Linear(config.hidden_size, config.hidden_size)
-		self.LayerNorm = BertLayerNorm(config.hidden_size, eps=config.layer_norm_eps)
+		self.LayerNorm = BertLayerNorm(config.hidden_size)
 		self.dropout = nn.Dropout(config.hidden_dropout_prob)
 
 	def transpose_for_scores(self, x):
@@ -47,7 +47,8 @@ class KVMem_Att_layer(nn.Module):
 	def forward(self, bert_output, commonsense, attention_mask, commonsense_mask, commonsense_shape):
 		b_size, num_cand, num_path, path_len = commonsense_shape
 		lstm_output, (h, c) = self.commonsense_encoder(commonsense)
-		encoded_cs = h.permute(1, 0, 2).contiguous().view(b_size*num_cand*num_path, -1)
+		encoded_cs = h.permute(1, 0, 2)
+		encoded_cs = encoded_cs.contiguous().view(b_size*num_cand*num_path, -1)
 		cs_key = self.commonsense_wk(encoded_cs).view(b_size*num_cand, num_path, -1)
 		cs_value = self.commonsense_wv(encoded_cs).view(b_size*num_cand, num_path, -1)
 

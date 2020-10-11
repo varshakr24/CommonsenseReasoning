@@ -26,7 +26,7 @@ from .file_utils import cached_path
 from .loss import LabelSmoothingLoss
 
 logger = logging.getLogger(__name__)
-
+from transformers import RobertaConfig
 PRETRAINED_MODEL_ARCHIVE_MAP = {
     'bert-base-uncased': "https://s3.amazonaws.com/models.huggingface.co/bert/bert-base-uncased.tar.gz",
     'bert-large-uncased': "https://s3.amazonaws.com/models.huggingface.co/bert/bert-large-uncased.tar.gz",
@@ -485,22 +485,23 @@ class BertEncoder(nn.Module):
         layer = BertLayer(config)
         self.layer = nn.ModuleList([copy.deepcopy(layer)
                                     for _ in range(config.num_hidden_layers)])
-        self.InjectLayer = hykas.KVMem_Att_layer
+                                    
+        self.InjectLayer = hykas.KVMem_Att_layer(config)
 
-    def forward(self, hidden_states, attention_mask, output_all_encoded_layers=True, prev_embedding=None, prev_encoded_layers=None, mask_qkv=None, seg_ids=None,
+    def forward(self, hidden_states, attention_mask,token_a_mask, output_all_encoded_layers=True, prev_embedding=None, prev_encoded_layers=None, mask_qkv=None, seg_ids=None,
         concepts=None, concepts_mask=None):
         # history embedding and encoded layer must be simultanously given
         assert (prev_embedding is None) == (prev_encoded_layers is None)
-
         all_encoder_layers = []
         if (prev_embedding is not None) and (prev_encoded_layers is not None):
             history_states = prev_embedding
             for i, layer_module in enumerate(self.layer):
                 if i==1:
-                    path_len = 8
+                    concepts = concepts.unsqueeze(1)
+                    path_len = concepts.size(3)
                     cs_embeddings = self.cs_embeddings(concepts.view(-1, path_len))
-                    concepts_mask = concepts_mask.view(batch_size*num_cand, -1)
-                    history_states = self.InjectLayer(history_states, cs_embeddings, attention_mask, concepts_mask, concepts.shape)
+                    
+                    history_states = self.InjectLayer(history_states, cs_embeddings, token_a_mask, concepts_mask, concepts.shape)
                 hidden_states = layer_module(
                     hidden_states, attention_mask, history_states=history_states, mask_qkv=mask_qkv, seg_ids=seg_ids)
                 if output_all_encoded_layers:
@@ -510,14 +511,17 @@ class BertEncoder(nn.Module):
         else:
             for i,layer_module in enumerate(self.layer):
                 if i==1:
-                    path_len = 8
+                    concepts = concepts.unsqueeze(1)
+                    path_len = concepts.size(3)
                     cs_embeddings = self.cs_embeddings(concepts.view(-1, path_len))
-                    concepts_mask = concepts_mask.view(batch_size*num_cand, -1)
-                    history_states = self.InjectLayer(history_states, cs_embeddings, attention_mask, concepts_mask, concepts.shape)
+                    
+                    hidden_states = self.InjectLayer(hidden_states, cs_embeddings, token_a_mask.view(-1,attention_mask.size(-1)), concepts_mask, concepts.shape)
+                    print("inject done")
+                print(i,len(self.layer))
                 hidden_states = layer_module(
                     hidden_states, attention_mask, mask_qkv=mask_qkv, seg_ids=seg_ids)
                 if output_all_encoded_layers:
-                    all_encoder_layers.append(hidden_states)
+                    all_encoder_layers.append(hidden_states)  
         if not output_all_encoded_layers:
             all_encoder_layers.append(hidden_states)
         return all_encoder_layers
@@ -1052,14 +1056,13 @@ class BertModel(PreTrainedBertModel):
         extended_attention_mask = (1.0 - extended_attention_mask) * -10000.0
         return extended_attention_mask
 
-    def forward(self, input_ids, token_type_ids=None, attention_mask=None, output_all_encoded_layers=True, mask_qkv=None, task_idx=None,
+    def forward(self, input_ids, token_type_ids=None, attention_mask=None, token_a_mask=None, output_all_encoded_layers=True, mask_qkv=None, task_idx=None,
             concepts=None, concepts_mask=None):
         extended_attention_mask = self.get_extended_attention_mask(
             input_ids, token_type_ids, attention_mask)
-
         embedding_output = self.embeddings(
             input_ids, token_type_ids, task_idx=task_idx)
-        encoded_layers = self.encoder(embedding_output, extended_attention_mask,
+        encoded_layers = self.encoder(embedding_output, extended_attention_mask, token_a_mask,
                                       output_all_encoded_layers=output_all_encoded_layers, mask_qkv=mask_qkv, seg_ids=token_type_ids,
                                       concepts=concepts, concepts_mask=concepts_mask)
         
@@ -1232,7 +1235,7 @@ class BertForPreTrainingLossMask(PreTrainedBertModel):
         self.apply(self.init_bert_weights)
         self.bert.rescale_some_parameters()
 
-    def forward(self, input_ids, token_type_ids=None, attention_mask=None, masked_lm_labels=None,
+    def forward(self, input_ids, token_type_ids=None, attention_mask=None, token_a_mask=None, masked_lm_labels=None,
                 next_sentence_label=None, masked_pos=None, masked_weights=None, task_idx=None, pair_x=None,
                 pair_x_mask=None, pair_y=None, pair_y_mask=None, pair_r=None, pair_pos_neg_mask=None,
                 pair_loss_mask=None, masked_pos_2=None, masked_weights_2=None, masked_labels_2=None,
@@ -1279,7 +1282,7 @@ class BertForPreTrainingLossMask(PreTrainedBertModel):
                              (attention_mask_task_3 & task_3.view(-1, 1, 1))
             attention_mask = attention_mask.type_as(input_ids)
         sequence_output, pooled_output = self.bert(
-            input_ids, token_type_ids, attention_mask, output_all_encoded_layers=False, mask_qkv=mask_qkv, task_idx=task_idx,
+            input_ids, token_type_ids, attention_mask, token_a_mask, output_all_encoded_layers=False, mask_qkv=mask_qkv, task_idx=task_idx,
             concepts=concepts, concepts_mask=concepts_mask)
 
         def gather_seq_out_by_pos(seq, pos):

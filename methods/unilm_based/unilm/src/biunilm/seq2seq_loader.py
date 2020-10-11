@@ -321,7 +321,8 @@ class Preprocess4Seq2seq(Pipeline):
         else:
             st, end = 0, len(tokens_a) + len(tokens_b) + 3
             input_mask[st:end, st:end].copy_(self._tril_matrix[:end, :end])
-
+        token_a_mask = torch.zeros(self.max_len,  dtype=torch.long)
+        token_a_mask[:len(tokens_a)+2].fill_(1)
         # Zero Padding for masked target
         if self.max_pred > n_pred:
             n_pad = self.max_pred - n_pred
@@ -357,7 +358,7 @@ class Preprocess4Seq2seq(Pipeline):
                     masked_pos, masked_weights, -1, self.task_idx,
                     oracle_pos, oracle_weights, oracle_labels)
 
-        return (input_ids, segment_ids, input_mask, mask_qkv, masked_ids, masked_pos, masked_weights, -1, self.task_idx, cs_tk, cs_mask)
+        return (input_ids, segment_ids, input_mask, token_a_mask, mask_qkv, masked_ids, masked_pos, masked_weights, -1, self.task_idx, cs_tk, cs_mask)
 
 
 class Preprocess4Seq2seqDecoder(Pipeline):
@@ -444,9 +445,12 @@ class Preprocess4Seq2seqDecoder(Pipeline):
             input_mask[st:end, st:end].copy_(
                 self._tril_matrix[:end, :end])
             input_mask[end:, :len(tokens_a)+2].fill_(1)
+        token_a_mask = torch.zeros(
+            max_len_in_batch,  dtype=torch.long)
+        token_a_mask[:, :len(tokens_a)+2].fill_(1)
         second_st, second_end = len(padded_tokens_a), max_len_in_batch
 
         input_mask[second_st:second_end, second_st:second_end].copy_(
             self._tril_matrix[:second_end-second_st, :second_end-second_st])
 
-        return (input_ids, segment_ids, position_ids, input_mask, mask_qkv, self.task_idx, concepts, concepts_mask)
+        return (input_ids, segment_ids, position_ids, input_mask, token_a_mask ,mask_qkv, self.task_idx, concepts, concepts_mask)
