@@ -447,7 +447,7 @@ class Preprocess4Seq2seqDecoder(Pipeline):
             input_mask[end:, :len(tokens_a)+2].fill_(1)
         token_a_mask = torch.zeros(
             max_len_in_batch,  dtype=torch.long)
-        token_a_mask[:, :len(tokens_a)+2].fill_(1)
+        token_a_mask[:len(tokens_a)+2].fill_(1)
         second_st, second_end = len(padded_tokens_a), max_len_in_batch
 
         input_mask[second_st:second_end, second_st:second_end].copy_(

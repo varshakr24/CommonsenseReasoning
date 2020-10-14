@@ -265,9 +265,9 @@ def main():
                         instances)
                     batch = [
                         t.to(device) if t is not None else None for t in batch]
-                    input_ids, token_type_ids, position_ids, input_mask, mask_qkv, task_idx, cs_inp, cs_mask = batch
+                    input_ids, token_type_ids, position_ids, input_mask, tok_a_mask, mask_qkv, task_idx, cs_inp, cs_mask = batch
                     traces = model(input_ids, token_type_ids,
-                                   position_ids, input_mask, task_idx=task_idx, mask_qkv=mask_qkv,
+                                   position_ids, input_mask, tok_a_mask, task_idx=task_idx, mask_qkv=mask_qkv,
                                    concepts=cs_inp,concepts_mask=cs_mask)
                     if args.beam_size > 1:
                         traces = {k: v.tolist() for k, v in traces.items()}

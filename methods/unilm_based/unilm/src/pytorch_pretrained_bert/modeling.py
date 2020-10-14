@@ -515,7 +515,7 @@ class BertEncoder(nn.Module):
                     path_len = concepts.size(3)
                     cs_embeddings = self.cs_embeddings(concepts.view(-1, path_len))
                     
-                    hidden_states = self.InjectLayer(hidden_states, cs_embeddings, token_a_mask.view(-1,attention_mask.size(-1)), concepts_mask, concepts.shape)
+                    hidden_states = self.InjectLayer(hidden_states, cs_embeddings, token_a_mask.view(-1,token_a_mask.size(-1)), concepts_mask, concepts.shape)
                 hidden_states = layer_module(
                     hidden_states, attention_mask, mask_qkv=mask_qkv, seg_ids=seg_ids)
                 if output_all_encoded_layers:
@@ -1075,7 +1075,7 @@ class BertModelIncr(BertModel):
     def __init__(self, config):
         super(BertModelIncr, self).__init__(config)
 
-    def forward(self, input_ids, token_type_ids, position_ids, attention_mask, output_all_encoded_layers=True, prev_embedding=None,
+    def forward(self, input_ids, token_type_ids, position_ids, attention_mask, tok_a_mask, output_all_encoded_layers=True, prev_embedding=None,
                 prev_encoded_layers=None, mask_qkv=None, task_idx=None, concepts=None, concepts_mask=None):
         extended_attention_mask = self.get_extended_attention_mask(
             input_ids, token_type_ids, attention_mask)
@@ -1084,6 +1084,7 @@ class BertModelIncr(BertModel):
             input_ids, token_type_ids, position_ids, task_idx=task_idx)
         encoded_layers = self.encoder(embedding_output,
                                       extended_attention_mask,
+                                      tok_a_mask,
                                       output_all_encoded_layers=output_all_encoded_layers,
                                       prev_embedding=prev_embedding,
                                       prev_encoded_layers=prev_encoded_layers, mask_qkv=mask_qkv, seg_ids=token_type_ids,
@@ -1428,11 +1429,11 @@ class BertForSeq2SeqDecoder(PreTrainedBertModel):
         self.mode = mode
         self.pos_shift = pos_shift
 
-    def forward(self, input_ids, token_type_ids, position_ids, attention_mask, task_idx=None, mask_qkv=None,
+    def forward(self, input_ids, token_type_ids, position_ids, attention_mask, tok_a_mask, task_idx=None, mask_qkv=None,
         concepts=None, concepts_mask=None):
         if self.search_beam_size > 1:
-            return self.beam_search(input_ids, token_type_ids, position_ids, attention_mask, task_idx=task_idx, mask_qkv=mask_qkv, concepts=None, concepts_mask=None)
-
+            return self.beam_search(input_ids, token_type_ids, position_ids, attention_mask, tok_a_mask, task_idx=task_idx, mask_qkv=mask_qkv, concepts=concepts, concepts_mask=concepts_mask)
+        
         input_shape = list(input_ids.size())
         batch_size = input_shape[0]
         input_length = input_shape[1]
@@ -1504,7 +1505,7 @@ class BertForSeq2SeqDecoder(PreTrainedBertModel):
 
         return torch.cat(output_ids, dim=1)
 
-    def beam_search(self, input_ids, token_type_ids, position_ids, attention_mask, task_idx=None, mask_qkv=None, concepts=None, concepts_mask=None):
+    def beam_search(self, input_ids, token_type_ids, position_ids, attention_mask, tok_a_mask, task_idx=None, mask_qkv=None, concepts=None, concepts_mask=None):
         input_shape = list(input_ids.size())
         batch_size = input_shape[0]
         input_length = input_shape[1]
@@ -1548,10 +1549,11 @@ class BertForSeq2SeqDecoder(PreTrainedBertModel):
             curr_attention_mask = attention_mask[:,
                                                  start_pos:next_pos + 1, :next_pos + 1]
             curr_position_ids = position_ids[:, start_pos:next_pos + 1]
+            #cur_tok_a_mask = tok_a_mask[:]
             new_embedding, new_encoded_layers, _ = \
-                self.bert(x_input_ids, curr_token_type_ids, curr_position_ids, curr_attention_mask,
+                self.bert(x_input_ids, curr_token_type_ids, curr_position_ids, curr_attention_mask, curr_attention_mask,
                           output_all_encoded_layers=True, prev_embedding=prev_embedding, prev_encoded_layers=prev_encoded_layers, mask_qkv=mask_qkv,
-                          concepts=None, concepts_mask=None)
+                          concepts=concepts, concepts_mask=concepts_mask)
 
             last_hidden = new_encoded_layers[-1][:, -1:, :]
             prediction_scores, _ = self.cls(

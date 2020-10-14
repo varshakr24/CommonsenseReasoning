@@ -63,6 +63,7 @@ class KVMem_Att_layer(nn.Module):
 		mask_dqa = (1.0 - attention_mask.float()) * -10000.0
 		joint_mask = mask_cs.unsqueeze(1) + mask_dqa.unsqueeze(2)    # batch * seq_len * num_paths
 		joint_mask = joint_mask.unsqueeze(1)   # batch * 1 * seq_len * num_paths
+		print(attention_scores.size(), joint_mask.size())
 		attention_scores = attention_scores + joint_mask
 		attention_probs = nn.Softmax(dim=-1)(attention_scores)
 		attention_probs = self.att_dropout(attention_probs)
