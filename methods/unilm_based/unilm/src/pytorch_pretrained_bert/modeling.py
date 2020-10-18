@@ -235,8 +235,7 @@ class BertEmbeddings(nn.Module):
             position_ids = position_ids.unsqueeze(0).expand_as(input_ids)
         if token_type_ids is None:
             token_type_ids = torch.zeros_like(input_ids)
-        print("getting word emb")
-        print(input_ids)
+
         words_embeddings = self.word_embeddings(input_ids)
         print("getting pos")
         position_embeddings = self.position_embeddings(position_ids)
@@ -1083,7 +1082,7 @@ class BertModelIncr(BertModel):
                 prev_encoded_layers=None, mask_qkv=None, task_idx=None, concepts=None, concepts_mask=None):
         extended_attention_mask = self.get_extended_attention_mask(
             input_ids, token_type_ids, attention_mask)
-        print("calling embeddings")
+
         embedding_output = self.embeddings(
             input_ids, token_type_ids, position_ids, task_idx=task_idx)
         print("Calling encoder")
