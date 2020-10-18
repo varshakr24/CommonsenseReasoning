@@ -235,12 +235,8 @@ class BertEmbeddings(nn.Module):
             position_ids = position_ids.unsqueeze(0).expand_as(input_ids)
         if token_type_ids is None:
             token_type_ids = torch.zeros_like(input_ids)
-        print("getting word emb")
-        print(input_ids)
         words_embeddings = self.word_embeddings(input_ids)
-        print("getting pos")
         position_embeddings = self.position_embeddings(position_ids)
-        print("getting type emb")
         token_type_embeddings = self.token_type_embeddings(token_type_ids)
 
         if self.num_pos_emb > 1:
@@ -494,7 +490,6 @@ class BertEncoder(nn.Module):
     def forward(self, hidden_states, attention_mask,token_a_mask, output_all_encoded_layers=True, prev_embedding=None, prev_encoded_layers=None, mask_qkv=None, seg_ids=None,
         concepts=None, concepts_mask=None):
         # history embedding and encoded layer must be simultanously given
-        print("bert encoder forward")
         assert (prev_embedding is None) == (prev_encoded_layers is None)
         all_encoder_layers = []
         if (prev_embedding is not None) and (prev_encoded_layers is not None):
@@ -525,7 +520,6 @@ class BertEncoder(nn.Module):
                     all_encoder_layers.append(hidden_states)  
         if not output_all_encoded_layers:
             all_encoder_layers.append(hidden_states)
-        print("encoder returned")
         return all_encoder_layers
 
 
@@ -1083,10 +1077,8 @@ class BertModelIncr(BertModel):
                 prev_encoded_layers=None, mask_qkv=None, task_idx=None, concepts=None, concepts_mask=None):
         extended_attention_mask = self.get_extended_attention_mask(
             input_ids, token_type_ids, attention_mask)
-        print("calling embeddings")
         embedding_output = self.embeddings(
             input_ids, token_type_ids, position_ids, task_idx=task_idx)
-        print("Calling encoder")
         encoded_layers = self.encoder(embedding_output,
                                       extended_attention_mask,
                                       tok_a_mask,
