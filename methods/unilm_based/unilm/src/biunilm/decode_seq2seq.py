@@ -32,7 +32,7 @@ logging.basicConfig(format='%(asctime)s - %(levelname)s - %(name)s -   %(message
                     level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-
+print("cuda available? ", torch.cuda.is_available())
 def detokenize(tk_list):
     r_list = []
     for tk in tk_list:
@@ -251,6 +251,7 @@ def main():
 
         with tqdm(total=total_batch) as pbar:
             while next_i < len(input_lines):
+                print("requesting batch")
                 _chunk = input_lines[next_i:next_i + args.batch_size]
                 buf_id = [x[0] for x in _chunk]
                 buf = [x[1] for x in _chunk]
@@ -266,6 +267,7 @@ def main():
                     batch = [
                         t.to(device) if t is not None else None for t in batch]
                     input_ids, token_type_ids, position_ids, input_mask, tok_a_mask, mask_qkv, task_idx, cs_inp, cs_mask = batch
+                    print("Got batch ")
                     traces = model(input_ids, token_type_ids,
                                    position_ids, input_mask, tok_a_mask, task_idx=task_idx, mask_qkv=mask_qkv,
                                    concepts=cs_inp,concepts_mask=cs_mask)
