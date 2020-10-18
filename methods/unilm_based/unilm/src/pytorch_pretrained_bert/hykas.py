@@ -54,7 +54,6 @@ class KVMem_Att_layer(nn.Module):
 		return x
 
 	def forward(self, bert_output, commonsense, attention_mask, commonsense_mask, commonsense_shape):
-		print("hykas forward")
 		b_size, num_cand, num_path, path_len = commonsense_shape
 		K = int(bert_output.shape[0]/b_size)
 		commonsense_mask = self.first_expand(commonsense_mask,K)
@@ -91,5 +90,4 @@ class KVMem_Att_layer(nn.Module):
 		cs_attended = self.output(context_layer)
 		cs_attended = self.dropout(cs_attended)
 		cs_attended = self.LayerNorm(cs_attended + bert_output)
-		print("returned")
 		return cs_attended
