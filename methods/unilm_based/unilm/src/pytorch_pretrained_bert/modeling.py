@@ -235,9 +235,12 @@ class BertEmbeddings(nn.Module):
             position_ids = position_ids.unsqueeze(0).expand_as(input_ids)
         if token_type_ids is None:
             token_type_ids = torch.zeros_like(input_ids)
-
+        print("getting word emb")
+        print(input_ids)
         words_embeddings = self.word_embeddings(input_ids)
+        print("getting pos")
         position_embeddings = self.position_embeddings(position_ids)
+        print("getting type emb")
         token_type_embeddings = self.token_type_embeddings(token_type_ids)
 
         if self.num_pos_emb > 1:
@@ -491,37 +494,38 @@ class BertEncoder(nn.Module):
     def forward(self, hidden_states, attention_mask,token_a_mask, output_all_encoded_layers=True, prev_embedding=None, prev_encoded_layers=None, mask_qkv=None, seg_ids=None,
         concepts=None, concepts_mask=None):
         # history embedding and encoded layer must be simultanously given
+        print("bert encoder forward")
         assert (prev_embedding is None) == (prev_encoded_layers is None)
         all_encoder_layers = []
         if (prev_embedding is not None) and (prev_encoded_layers is not None):
             history_states = prev_embedding
             for i, layer_module in enumerate(self.layer):
-                if i==1:
-                    concepts = concepts.unsqueeze(1)
-                    path_len = concepts.size(3)
-                    cs_embeddings = self.cs_embeddings(concepts.view(-1, path_len))
-                    
-                    history_states = self.InjectLayer(history_states, cs_embeddings, token_a_mask, concepts_mask, concepts.shape)
+                #if i==1:
+                #    concepts = concepts.unsqueeze(1)
+                #    path_len = concepts.size(3)
+                #    cs_embeddings = self.cs_embeddings(concepts.view(-1, path_len))
+                #    hidden_states = self.InjectLayer(hidden_states, cs_embeddings, token_a_mask, concepts_mask, concepts.shape)
                 hidden_states = layer_module(
                     hidden_states, attention_mask, history_states=history_states, mask_qkv=mask_qkv, seg_ids=seg_ids)
+                
                 if output_all_encoded_layers:
                     all_encoder_layers.append(hidden_states)
                 if prev_encoded_layers is not None:
                     history_states = prev_encoded_layers[i]
         else:
             for i,layer_module in enumerate(self.layer):
-                if i==1:
-                    concepts = concepts.unsqueeze(1)
-                    path_len = concepts.size(3)
-                    cs_embeddings = self.cs_embeddings(concepts.view(-1, path_len))
-                    
-                    hidden_states = self.InjectLayer(hidden_states, cs_embeddings, token_a_mask.view(-1,attention_mask.size(-1)), concepts_mask, concepts.shape)
+                #if i==1:
+                #    concepts = concepts.unsqueeze(1)
+                #    path_len = concepts.size(3)
+                #    cs_embeddings = self.cs_embeddings(concepts.view(-1, path_len))
+                #    hidden_states = self.InjectLayer(hidden_states, cs_embeddings, token_a_mask.view(-1,token_a_mask.size(-1)), concepts_mask, concepts.shape)
                 hidden_states = layer_module(
                     hidden_states, attention_mask, mask_qkv=mask_qkv, seg_ids=seg_ids)
                 if output_all_encoded_layers:
                     all_encoder_layers.append(hidden_states)  
         if not output_all_encoded_layers:
             all_encoder_layers.append(hidden_states)
+        print("encoder returned")
         return all_encoder_layers
 
 
@@ -1075,15 +1079,17 @@ class BertModelIncr(BertModel):
     def __init__(self, config):
         super(BertModelIncr, self).__init__(config)
 
-    def forward(self, input_ids, token_type_ids, position_ids, attention_mask, output_all_encoded_layers=True, prev_embedding=None,
+    def forward(self, input_ids, token_type_ids, position_ids, attention_mask, tok_a_mask, output_all_encoded_layers=True, prev_embedding=None,
                 prev_encoded_layers=None, mask_qkv=None, task_idx=None, concepts=None, concepts_mask=None):
         extended_attention_mask = self.get_extended_attention_mask(
             input_ids, token_type_ids, attention_mask)
-
+        print("calling embeddings")
         embedding_output = self.embeddings(
             input_ids, token_type_ids, position_ids, task_idx=task_idx)
+        print("Calling encoder")
         encoded_layers = self.encoder(embedding_output,
                                       extended_attention_mask,
+                                      tok_a_mask,
                                       output_all_encoded_layers=output_all_encoded_layers,
                                       prev_embedding=prev_embedding,
                                       prev_encoded_layers=prev_encoded_layers, mask_qkv=mask_qkv, seg_ids=token_type_ids,
@@ -1428,11 +1434,11 @@ class BertForSeq2SeqDecoder(PreTrainedBertModel):
         self.mode = mode
         self.pos_shift = pos_shift
 
-    def forward(self, input_ids, token_type_ids, position_ids, attention_mask, task_idx=None, mask_qkv=None,
+    def forward(self, input_ids, token_type_ids, position_ids, attention_mask, tok_a_mask, task_idx=None, mask_qkv=None,
         concepts=None, concepts_mask=None):
         if self.search_beam_size > 1:
-            return self.beam_search(input_ids, token_type_ids, position_ids, attention_mask, task_idx=task_idx, mask_qkv=mask_qkv, concepts=None, concepts_mask=None)
-
+            return self.beam_search(input_ids, token_type_ids, position_ids, attention_mask, tok_a_mask, task_idx=task_idx, mask_qkv=mask_qkv, concepts=concepts, concepts_mask=concepts_mask)
+        
         input_shape = list(input_ids.size())
         batch_size = input_shape[0]
         input_length = input_shape[1]
@@ -1504,7 +1510,7 @@ class BertForSeq2SeqDecoder(PreTrainedBertModel):
 
         return torch.cat(output_ids, dim=1)
 
-    def beam_search(self, input_ids, token_type_ids, position_ids, attention_mask, task_idx=None, mask_qkv=None, concepts=None, concepts_mask=None):
+    def beam_search(self, input_ids, token_type_ids, position_ids, attention_mask, tok_a_mask, task_idx=None, mask_qkv=None, concepts=None, concepts_mask=None):
         input_shape = list(input_ids.size())
         batch_size = input_shape[0]
         input_length = input_shape[1]
@@ -1545,13 +1551,15 @@ class BertForSeq2SeqDecoder(PreTrainedBertModel):
                 x_input_ids = torch.cat((curr_ids, mask_ids), dim=1)
 
             curr_token_type_ids = token_type_ids[:, start_pos:next_pos + 1]
+        
             curr_attention_mask = attention_mask[:,
                                                  start_pos:next_pos + 1, :next_pos + 1]
             curr_position_ids = position_ids[:, start_pos:next_pos + 1]
+            curr_tok_a_mask = tok_a_mask[:,start_pos:next_pos+1]
             new_embedding, new_encoded_layers, _ = \
-                self.bert(x_input_ids, curr_token_type_ids, curr_position_ids, curr_attention_mask,
+                self.bert(x_input_ids, curr_token_type_ids, curr_position_ids, curr_attention_mask, curr_tok_a_mask,
                           output_all_encoded_layers=True, prev_embedding=prev_embedding, prev_encoded_layers=prev_encoded_layers, mask_qkv=mask_qkv,
-                          concepts=None, concepts_mask=None)
+                          concepts=concepts, concepts_mask=concepts_mask)
 
             last_hidden = new_encoded_layers[-1][:, -1:, :]
             prediction_scores, _ = self.cls(
@@ -1629,7 +1637,7 @@ class BertForSeq2SeqDecoder(PreTrainedBertModel):
             else:
                 if prev_embedding is None:
                     prev_embedding = first_expand(new_embedding[:, :-1, :])
-                else:
+                else:   
                     prev_embedding = torch.cat(
                         (prev_embedding, new_embedding[:, :-1, :]), dim=1)
                     prev_embedding = select_beam_items(

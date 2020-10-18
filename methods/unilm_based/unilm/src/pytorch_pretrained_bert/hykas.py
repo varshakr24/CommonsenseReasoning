@@ -44,25 +44,41 @@ class KVMem_Att_layer(nn.Module):
 		x = x.view(*new_x_shape)
 		return x.permute(0, 2, 1, 3)
 
+	def first_expand(self, x, K):
+		input_shape = list(x.size())
+		expanded_shape = input_shape[:1] + [1] + input_shape[1:]
+		x = torch.reshape(x, expanded_shape)
+		repeat_count = [1, K] + [1] * (len(input_shape) - 1)
+		x = x.repeat(*repeat_count)
+		x = torch.reshape(x, [input_shape[0] * K] + input_shape[1:])
+		return x
+
 	def forward(self, bert_output, commonsense, attention_mask, commonsense_mask, commonsense_shape):
+		print("hykas forward")
 		b_size, num_cand, num_path, path_len = commonsense_shape
+		K = int(bert_output.shape[0]/b_size)
+		commonsense_mask = self.first_expand(commonsense_mask,K)
+		attention_mask = self.first_expand(attention_mask,K)
 		lstm_output, (h, c) = self.commonsense_encoder(commonsense)
 		encoded_cs = h.permute(1, 0, 2)
 		encoded_cs = encoded_cs.contiguous().view(b_size*num_cand*num_path, -1)
 		cs_key = self.commonsense_wk(encoded_cs).view(b_size*num_cand, num_path, -1)
 		cs_value = self.commonsense_wv(encoded_cs).view(b_size*num_cand, num_path, -1)
-
+		cs_key = self.first_expand(cs_key, K)
+		cs_value = self.first_expand(cs_value, K)
 		query_layer = self.transpose_for_scores(bert_output)
 		key_layer = self.transpose_for_scores(cs_key)
 		value_layer = self.transpose_for_scores(cs_value)
-
+	
 		attention_scores = torch.matmul(query_layer, key_layer.transpose(-1, -2))
 		attention_scores = attention_scores / math.sqrt(self.attention_head_size)
 
 		mask_cs = (1.0 - commonsense_mask.float()) * -10000.0
 		mask_dqa = (1.0 - attention_mask.float()) * -10000.0
+		
 		joint_mask = mask_cs.unsqueeze(1) + mask_dqa.unsqueeze(2)    # batch * seq_len * num_paths
 		joint_mask = joint_mask.unsqueeze(1)   # batch * 1 * seq_len * num_paths
+
 		attention_scores = attention_scores + joint_mask
 		attention_probs = nn.Softmax(dim=-1)(attention_scores)
 		attention_probs = self.att_dropout(attention_probs)
@@ -75,4 +91,5 @@ class KVMem_Att_layer(nn.Module):
 		cs_attended = self.output(context_layer)
 		cs_attended = self.dropout(cs_attended)
 		cs_attended = self.LayerNorm(cs_attended + bert_output)
+		print("returned")
 		return cs_attended
