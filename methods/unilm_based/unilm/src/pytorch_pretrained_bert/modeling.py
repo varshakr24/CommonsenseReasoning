@@ -237,9 +237,7 @@ class BertEmbeddings(nn.Module):
             token_type_ids = torch.zeros_like(input_ids)
 
         words_embeddings = self.word_embeddings(input_ids)
-        print("getting pos")
         position_embeddings = self.position_embeddings(position_ids)
-        print("getting type emb")
         token_type_embeddings = self.token_type_embeddings(token_type_ids)
 
         if self.num_pos_emb > 1:
@@ -493,17 +491,16 @@ class BertEncoder(nn.Module):
     def forward(self, hidden_states, attention_mask,token_a_mask, output_all_encoded_layers=True, prev_embedding=None, prev_encoded_layers=None, mask_qkv=None, seg_ids=None,
         concepts=None, concepts_mask=None):
         # history embedding and encoded layer must be simultanously given
-        print("bert encoder forward")
         assert (prev_embedding is None) == (prev_encoded_layers is None)
         all_encoder_layers = []
         if (prev_embedding is not None) and (prev_encoded_layers is not None):
             history_states = prev_embedding
             for i, layer_module in enumerate(self.layer):
-                #if i==1:
-                #    concepts = concepts.unsqueeze(1)
-                #    path_len = concepts.size(3)
-                #    cs_embeddings = self.cs_embeddings(concepts.view(-1, path_len))
-                #    hidden_states = self.InjectLayer(hidden_states, cs_embeddings, token_a_mask, concepts_mask, concepts.shape)
+                if i==1:
+                    concepts = concepts.unsqueeze(1)
+                    path_len = concepts.size(3)
+                    cs_embeddings = self.cs_embeddings(concepts.view(-1, path_len))
+                    hidden_states = self.InjectLayer(hidden_states, cs_embeddings, token_a_mask, concepts_mask, concepts.shape)
                 hidden_states = layer_module(
                     hidden_states, attention_mask, history_states=history_states, mask_qkv=mask_qkv, seg_ids=seg_ids)
                 
@@ -513,18 +510,17 @@ class BertEncoder(nn.Module):
                     history_states = prev_encoded_layers[i]
         else:
             for i,layer_module in enumerate(self.layer):
-                #if i==1:
-                #    concepts = concepts.unsqueeze(1)
-                #    path_len = concepts.size(3)
-                #    cs_embeddings = self.cs_embeddings(concepts.view(-1, path_len))
-                #    hidden_states = self.InjectLayer(hidden_states, cs_embeddings, token_a_mask.view(-1,token_a_mask.size(-1)), concepts_mask, concepts.shape)
+                if i==1:
+                    concepts = concepts.unsqueeze(1)
+                    path_len = concepts.size(3)
+                    cs_embeddings = self.cs_embeddings(concepts.view(-1, path_len))
+                    hidden_states = self.InjectLayer(hidden_states, cs_embeddings, token_a_mask.view(-1,token_a_mask.size(-1)), concepts_mask, concepts.shape)
                 hidden_states = layer_module(
                     hidden_states, attention_mask, mask_qkv=mask_qkv, seg_ids=seg_ids)
                 if output_all_encoded_layers:
                     all_encoder_layers.append(hidden_states)  
         if not output_all_encoded_layers:
             all_encoder_layers.append(hidden_states)
-        print("encoder returned")
         return all_encoder_layers
 
 
@@ -1085,7 +1081,6 @@ class BertModelIncr(BertModel):
 
         embedding_output = self.embeddings(
             input_ids, token_type_ids, position_ids, task_idx=task_idx)
-        print("Calling encoder")
         encoded_layers = self.encoder(embedding_output,
                                       extended_attention_mask,
                                       tok_a_mask,
