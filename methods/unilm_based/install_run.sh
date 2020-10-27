@@ -2,22 +2,23 @@
 # cd CommonsenseReasoning/methods/unilm_based
 yes | conda create -n unilm_env python=3.6
 conda activate unilm_env
-yes | conda install pytorch=1.3.0 torchvision cudatoolkit=10.0 -c pytorch -n unilm_env
+yes | conda install pytorch=1.4.0 torchvision cudatoolkit=10.0 -c pytorch -n unilm_env
 
 mkdir tmp
 pip install gdown
 gdown https://drive.google.com/uc?id=1Zj_nZWO7YffaOInj3Q4SZyn09Mb3In-e
 unzip unilmv1-large-cased.zip
+rm unilmv1-large-cased.zip
 mv unilmv1-large-cased.bin tmp/
 
 cd tmp
 git clone https://github.com/NVIDIA/apex
 cd apex
-pip install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" ./
+python setup.py install --cuda_ext --cpp_ext
 cd ../../
 
 
-pip install --user tensorboardX six numpy tqdm path.py pandas scikit-learn lmdb pyarrow py-lz4framed methodtools py-rouge pyrouge nltk transformers
+pip install --user tensorboardX six numpy tqdm path.py pandas scikit-learn lmdb pyarrow py-lz4framed methodtools py-rouge pyrouge nltk 
 python -c "import nltk; nltk.download('punkt')"
 pip install -e git://github.com/Maluuba/nlg-eval.git#egg=nlg-eval
 cd unilm/src
