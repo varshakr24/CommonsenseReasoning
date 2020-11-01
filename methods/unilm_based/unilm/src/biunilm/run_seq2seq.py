@@ -285,8 +285,11 @@ def main():
             args.data_dir, args.tgt_file if args.tgt_file else 'train.tgt')
         fn_cs = os.path.join(
             args.data_dir, args.cs_file if args.cs_file else 'train.cs')
+        fn_exp = os.path.join(
+            args.data_dir, args.exp_file if args.exp_file else 'train.exp')
+
         train_dataset = seq2seq_loader.Seq2SeqDataset(
-            fn_src, fn_tgt, fn_cs, args.train_batch_size, data_tokenizer, args.max_seq_length, file_oracle=file_oracle, bi_uni_pipeline=bi_uni_pipeline)
+            fn_src, fn_tgt, fn_cs,fn_exp, args.train_batch_size, data_tokenizer, args.max_seq_length, file_oracle=file_oracle, bi_uni_pipeline=bi_uni_pipeline)
         if args.local_rank == -1:
             train_sampler = RandomSampler(train_dataset, replacement=False)
             _batch_size = args.train_batch_size

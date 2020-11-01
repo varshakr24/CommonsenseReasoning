@@ -55,7 +55,7 @@ def truncate_tokens_pair(tokens_a, tokens_b, max_len, max_len_a=0, max_len_b=0, 
 class Seq2SeqDataset(torch.utils.data.Dataset):
     """ Load sentence pair (sequential or random order) from corpus """
 
-    def __init__(self, file_src, file_tgt, file_cs, batch_size, tokenizer, max_len, file_oracle=None, short_sampling_prob=0.1, sent_reverse_order=False, bi_uni_pipeline=[]):
+    def __init__(self, file_src, file_tgt, file_cs,file_exp, batch_size, tokenizer, max_len, file_oracle=None, short_sampling_prob=0.1, sent_reverse_order=False, bi_uni_pipeline=[]):
         super().__init__()
         self.tokenizer = tokenizer  # tokenize function
         self.max_len = max_len  # maximum length of tokens
@@ -75,10 +75,12 @@ class Seq2SeqDataset(torch.utils.data.Dataset):
         if file_oracle is None:
             with open(file_src, "r", encoding='utf-8') as f_src,\
                     open(file_tgt, "r", encoding='utf-8') as f_tgt,\
-                    open(file_cs, "r", encoding='utf-8') as f_cs:            
-                for src, tgt, cs_str in zip(f_src, f_tgt, f_cs):
-                    src_tk = tokenizer.tokenize(src.strip())
+                    open(file_cs, "r", encoding='utf-8') as f_cs,\
+                    open(file_exp, "r", encoding='utf-8') as f_exp  :            
+                for src, tgt, cs_str, exp in zip(f_src, f_tgt, f_cs, f_exp):
+                    src_tk = tokenizer.tokenize(src.strip()+" "+exp.strip())
                     tgt_tk = tokenizer.tokenize(tgt.strip())
+                    
                     assert len(src_tk) > 0
                     assert len(tgt_tk) > 0
                     cs = json.loads(cs_str)
