@@ -35,6 +35,7 @@ CUDA_VISIBLE_DEVICES=7 python unilm/src/biunilm/run_seq2seq.py --do_train --num_
   --src_file commongen.train.src_alpha.txt \
   --tgt_file commongen.train.tgt.txt \
   --cs_file commongen.train.cs_rel.txt \
+  --exp_file commongen.train.exp.txt\
   --output_dir ${OUTPUT_DIR}/bert_save \
   --log_dir ${OUTPUT_DIR}/bert_log \
   --model_recover_path ${MODEL_RECOVER_PATH} \
