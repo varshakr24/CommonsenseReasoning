@@ -31,19 +31,20 @@ DATA_DIR=../../dataset/final_data/commongen/; \
 OUTPUT_DIR=tmp/finetuned_models/; \
 MODEL_RECOVER_PATH=tmp/unilmv1-large-cased.bin; \
 export PYTORCH_PRETRAINED_BERT_CACHE=tmp/bert-cased-pretrained-cache; \
-CUDA_VISIBLE_DEVICES=7 python unilm/src/biunilm/run_seq2seq.py --do_train --num_workers 0 \
+CUDA_VISIBLE_DEVICES=0 python unilm/src/biunilm/run_seq2seq.py --do_train --num_workers 0 \
   --bert_model bert-large-cased --new_segment_ids \
   --data_dir ${DATA_DIR} \
   --src_file commongen.train.src_alpha.txt \
   --tgt_file commongen.train.tgt.txt \
   --cs_file commongen.train.cs_rel.txt \
+  --exp_file commongen.train.exp.txt \
   --output_dir ${OUTPUT_DIR}/bert_save \
   --log_dir ${OUTPUT_DIR}/bert_log \
   --model_recover_path ${MODEL_RECOVER_PATH} \
   --max_seq_length 64 --max_position_embeddings 64 \
   --always_truncate_tail  --max_len_a 64 --max_len_b 64 \
   --mask_prob 0.7 --max_pred 20 \
-  --train_batch_size 64 --gradient_accumulation_steps 1 \
+  --train_batch_size 32 --gradient_accumulation_steps 1 \
   --learning_rate 0.00001 --warmup_proportion 0.1 --label_smoothing 0.1 \
-  --num_train_epochs 30 \
+  --num_train_epochs 10 \
   # --fp16 --amp  \
