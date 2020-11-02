@@ -1,23 +1,25 @@
 # git clone https://github.com/varshakr24/CommonsenseReasoning.git
 # cd CommonsenseReasoning/methods/unilm_based
 yes | conda create -n unilm_env python=3.6
+source ~/anaconda3/etc/profile.d/conda.sh
 conda activate unilm_env
-yes | conda install pytorch=1.3.0 torchvision cudatoolkit=10.0 -c pytorch -n unilm_env
+yes | conda install pytorch=1.4.0 torchvision cudatoolkit=10.0 -c pytorch -n unilm_env
 
 mkdir tmp
 pip install gdown
 gdown https://drive.google.com/uc?id=1Zj_nZWO7YffaOInj3Q4SZyn09Mb3In-e
 unzip unilmv1-large-cased.zip
+rm unilmv1-large-cased.zip
 mv unilmv1-large-cased.bin tmp/
 
 cd tmp
 git clone https://github.com/NVIDIA/apex
 cd apex
-pip install -v --no-cache-dir --global-option="--cpp_ext" --global-option="--cuda_ext" ./
+python setup.py install --cuda_ext --cpp_ext
 cd ../../
 
 
-pip install --user tensorboardX six numpy tqdm path.py pandas scikit-learn lmdb pyarrow py-lz4framed methodtools py-rouge pyrouge nltk transformers
+pip install --user tensorboardX six numpy tqdm path.py pandas scikit-learn lmdb pyarrow py-lz4framed methodtools py-rouge pyrouge nltk 
 python -c "import nltk; nltk.download('punkt')"
 pip install -e git://github.com/Maluuba/nlg-eval.git#egg=nlg-eval
 cd unilm/src
@@ -35,7 +37,6 @@ CUDA_VISIBLE_DEVICES=7 python unilm/src/biunilm/run_seq2seq.py --do_train --num_
   --src_file commongen.train.src_alpha.txt \
   --tgt_file commongen.train.tgt.txt \
   --cs_file commongen.train.cs_rel.txt \
-  --exp_file commongen.train.exp.txt\
   --output_dir ${OUTPUT_DIR}/bert_save \
   --log_dir ${OUTPUT_DIR}/bert_log \
   --model_recover_path ${MODEL_RECOVER_PATH} \
