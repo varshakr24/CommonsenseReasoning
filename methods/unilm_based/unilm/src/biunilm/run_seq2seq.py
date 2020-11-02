@@ -61,6 +61,8 @@ def main():
                         help="The output data file name.")
     parser.add_argument("--cs_file", default=None, type=str,
                         help="The cs data file name.")
+    parser.add_argument("--exp_file", default=None, type=str,
+                        help="The exp data file name.")
     parser.add_argument("--bert_model", default=None, type=str, required=True,
                         help="Bert pre-trained model selected in the list: bert-base-uncased, "
                              "bert-large-uncased, bert-base-cased, bert-base-multilingual, bert-base-chinese.")
