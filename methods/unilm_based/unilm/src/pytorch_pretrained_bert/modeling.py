@@ -26,7 +26,7 @@ from .file_utils import cached_path
 from .loss import LabelSmoothingLoss
 
 logger = logging.getLogger(__name__)
-from transformers import RobertaConfig
+
 PRETRAINED_MODEL_ARCHIVE_MAP = {
     'bert-base-uncased': "https://s3.amazonaws.com/models.huggingface.co/bert/bert-base-uncased.tar.gz",
     'bert-large-uncased': "https://s3.amazonaws.com/models.huggingface.co/bert/bert-large-uncased.tar.gz",
