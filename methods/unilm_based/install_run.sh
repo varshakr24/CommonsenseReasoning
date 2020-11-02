@@ -1,6 +1,7 @@
 # git clone https://github.com/varshakr24/CommonsenseReasoning.git
 # cd CommonsenseReasoning/methods/unilm_based
 yes | conda create -n unilm_env python=3.6
+source ~/anaconda3/etc/profile.d/conda.sh
 conda activate unilm_env
 yes | conda install pytorch=1.4.0 torchvision cudatoolkit=10.0 -c pytorch -n unilm_env
 
