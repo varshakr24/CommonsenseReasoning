@@ -233,7 +233,7 @@ def main():
             if args.subset > 0:
                 logger.info("Decoding subset: %d", args.subset)
                 input_lines = input_lines[:args.subset]
-        with open(args.exp_file, encoding="utf-8") as fin:
+        with open(args.exp_file, encoding="utf-8") as fin :
             exp_lines = [" "+x.strip() for x in fin.readlines()]
             if args.subset > 0:
                 logger.info("Decoding subset: %d", args.subset)
@@ -244,13 +244,16 @@ def main():
                 logger.info("Decoding subset: %d", args.subset)
                 cs_input_lines = cs_input_lines[:args.subset]
         data_tokenizer = WhitespaceTokenizer() if args.tokenized_input else tokenizer
+        exp_lines = [data_tokenizer.tokenize(
+            x[0]+x[1])[:max_src_length] for x in zip(input_lines,exp_lines)]
         input_lines = [data_tokenizer.tokenize(
             x)[:max_src_length] for x in input_lines]
+
         cs_input_lines = [cs_tokenize(x,data_tokenizer) for x in cs_input_lines]
         zipped = list(zip(input_lines,cs_input_lines,exp_lines))
         
         input_lines = sorted(list(enumerate(zipped)),
-                             key=lambda x: -len(x[1][0]))
+                             key=lambda x: -len(x[1][2]))
         output_lines = [""] * len(input_lines)
         score_trace_list = [None] * len(input_lines)
         total_batch = math.ceil(len(input_lines) / args.batch_size)
@@ -261,9 +264,9 @@ def main():
                 buf_id = [x[0] for x in _chunk]
                 buf = [x[1] for x in _chunk]
                 next_i += args.batch_size
-                max_a_len = max([len(x[0]) for x in buf])
+                max_a_len = max([len(x[2]) for x in buf])
                 instances = []
-                for instance in [(x[0], max_a_len, x[1][0], x[1][1],x[2], max_src_len) for x in buf]:
+                for instance in [(x[0],x[2], max_a_len, x[1][0], x[1][1]) for x in buf]:
                     for proc in bi_uni_pipeline:
                         instances.append(proc(instance))
                 with torch.no_grad():

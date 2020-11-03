@@ -78,7 +78,8 @@ class Seq2SeqDataset(torch.utils.data.Dataset):
                     open(file_cs, "r", encoding='utf-8') as f_cs,\
                     open(file_exp, "r", encoding='utf-8') as f_exp  :            
                 for src, tgt, cs_str, exp in zip(f_src, f_tgt, f_cs, f_exp):
-                    src_tk = tokenizer.tokenize(src.strip()+" "+exp.strip())
+                    src_tk = tokenizer.tokenize(src.strip())
+                    src_exp_tk = tokenizer.tokenize(src.strip()+" "+exp.strip())
                     tgt_tk = tokenizer.tokenize(tgt.strip())
                     
                     assert len(src_tk) > 0
@@ -119,7 +120,7 @@ class Seq2SeqDataset(torch.utils.data.Dataset):
                     while len(concepts) < max_path:
                         concepts.append([cls_token, sep_token]+[pad_token]*max_path_len)
                         concepts_mask.append(0)
-                    self.ex_list.append((src_tk, tgt_tk, concepts, concepts_mask))
+                    self.ex_list.append((src_tk, src_exp_tk, tgt_tk, concepts, concepts_mask))
         else:
             with open(file_src, "r", encoding='utf-8') as f_src, \
                     open(file_tgt, "r", encoding='utf-8') as f_tgt, \
@@ -186,8 +187,8 @@ class Preprocess4Seq2seq(Pipeline):
         self.pos_shift = pos_shift
 
     def __call__(self, instance):
-        tokens_a, tokens_b, cs_tk, cs_mask = instance[:4]
-
+        original_tokens, tokens_a, tokens_b, cs_tk, cs_mask = instance[:5]
+        #print(instance)
         if self.pos_shift:
             tokens_b = ['[S2S_SOS]'] + tokens_b
 
@@ -386,18 +387,13 @@ class Preprocess4Seq2seqDecoder(Pipeline):
         self.pos_shift = pos_shift
 
     def __call__(self, instance):
-        tokens_a, max_a_len, concepts, concepts_mask,exp, max_src_len = instance
+        original_concepts, tokens_a, max_a_len, concepts, concepts_mask = instance
 
         # Add Special Tokens
-        token_a_mask = torch.zeros(
-            max_a_len,  dtype=torch.long)
-        token_a_mask[:len(tokens_a)+2].fill_(1)
-
         if self.s2s_special_token:
-            padded_tokens_a = ['[S2S_CLS]'] + tokens_a + exp + ['[S2S_SEP]']
+            padded_tokens_a = ['[S2S_CLS]'] + tokens_a + ['[S2S_SEP]']
         else:
-            padded_tokens_a = ['[CLS]'] + tokens_a  + exp + ['[SEP]']
-        padded_tokens_a  = padded_tokens_a[:max_src_len]
+            padded_tokens_a = ['[CLS]'] + tokens_a  + ['[SEP]']
         assert len(padded_tokens_a) <= max_a_len + 2
         if max_a_len + 2 > len(padded_tokens_a):
             padded_tokens_a += ['[PAD]'] * \
@@ -455,6 +451,9 @@ class Preprocess4Seq2seqDecoder(Pipeline):
             input_mask[end:, :len(tokens_a)+2].fill_(1)
         
         second_st, second_end = len(padded_tokens_a), max_len_in_batch
+        token_a_mask = torch.zeros(
+            max_len_in_batch,  dtype=torch.long)
+        token_a_mask[:len(original_concepts)+2].fill_(1)
 
         input_mask[second_st:second_end, second_st:second_end].copy_(
             self._tril_matrix[:second_end-second_st, :second_end-second_st])
