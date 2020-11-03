@@ -117,6 +117,7 @@ def main():
     parser.add_argument('--amp', action='store_true',
                         help="Whether to use amp for fp16")
     parser.add_argument("--input_file", type=str, help="Input file")
+    parser.add_argument("--exp_file", type=str, help="Exp file")
     parser.add_argument("--cs_input", type=str, help="CS Input file", required=True)
     parser.add_argument('--subset', type=int, default=0,
                         help="Decode a subset of the input dataset.")
@@ -232,6 +233,11 @@ def main():
             if args.subset > 0:
                 logger.info("Decoding subset: %d", args.subset)
                 input_lines = input_lines[:args.subset]
+        with open(args.exp_file, encoding="utf-8") as fin:
+            exp_lines = [" "+x.strip() for x in fin.readlines()]
+            if args.subset > 0:
+                logger.info("Decoding subset: %d", args.subset)
+                exp_lines = exp_lines[:args.subset]
         with open(args.cs_input, encoding="utf-8") as cs_fin:
             cs_input_lines = [x.strip() for x in cs_fin.readlines()]
             if args.subset > 0:
@@ -241,7 +247,7 @@ def main():
         input_lines = [data_tokenizer.tokenize(
             x)[:max_src_length] for x in input_lines]
         cs_input_lines = [cs_tokenize(x,data_tokenizer) for x in cs_input_lines]
-        zipped = list(zip(input_lines,cs_input_lines))
+        zipped = list(zip(input_lines,cs_input_lines,exp_lines))
         
         input_lines = sorted(list(enumerate(zipped)),
                              key=lambda x: -len(x[1][0]))
@@ -257,7 +263,7 @@ def main():
                 next_i += args.batch_size
                 max_a_len = max([len(x[0]) for x in buf])
                 instances = []
-                for instance in [(x[0], max_a_len, x[1][0], x[1][1]) for x in buf]:
+                for instance in [(x[0], max_a_len, x[1][0], x[1][1],x[2], max_src_len) for x in buf]:
                     for proc in bi_uni_pipeline:
                         instances.append(proc(instance))
                 with torch.no_grad():

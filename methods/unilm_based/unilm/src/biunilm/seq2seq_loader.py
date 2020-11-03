@@ -386,13 +386,18 @@ class Preprocess4Seq2seqDecoder(Pipeline):
         self.pos_shift = pos_shift
 
     def __call__(self, instance):
-        tokens_a, max_a_len, concepts, concepts_mask = instance
+        tokens_a, max_a_len, concepts, concepts_mask,exp, max_src_len = instance
 
         # Add Special Tokens
+        token_a_mask = torch.zeros(
+            max_a_len,  dtype=torch.long)
+        token_a_mask[:len(tokens_a)+2].fill_(1)
+
         if self.s2s_special_token:
-            padded_tokens_a = ['[S2S_CLS]'] + tokens_a + ['[S2S_SEP]']
+            padded_tokens_a = ['[S2S_CLS]'] + tokens_a + exp + ['[S2S_SEP]']
         else:
-            padded_tokens_a = ['[CLS]'] + tokens_a + ['[SEP]']
+            padded_tokens_a = ['[CLS]'] + tokens_a  + exp + ['[SEP]']
+        padded_tokens_a  = padded_tokens_a[:max_src_len]
         assert len(padded_tokens_a) <= max_a_len + 2
         if max_a_len + 2 > len(padded_tokens_a):
             padded_tokens_a += ['[PAD]'] * \
@@ -434,6 +439,7 @@ class Preprocess4Seq2seqDecoder(Pipeline):
         for i in range(max_a_len + 2, max_len_in_batch):
             position_ids.append(i - (max_a_len + 2) + len(tokens_a) + 2)
 
+        
         # Token Indexing
         input_ids = self.indexer(tokens)
 
@@ -447,9 +453,7 @@ class Preprocess4Seq2seqDecoder(Pipeline):
             input_mask[st:end, st:end].copy_(
                 self._tril_matrix[:end, :end])
             input_mask[end:, :len(tokens_a)+2].fill_(1)
-        token_a_mask = torch.zeros(
-            max_len_in_batch,  dtype=torch.long)
-        token_a_mask[:len(tokens_a)+2].fill_(1)
+        
         second_st, second_end = len(padded_tokens_a), max_len_in_batch
 
         input_mask[second_st:second_end, second_st:second_end].copy_(
