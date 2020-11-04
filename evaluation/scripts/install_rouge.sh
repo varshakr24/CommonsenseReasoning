@@ -45,5 +45,9 @@ sudo make install
 cd ..
 tar -zxvf ROUGE-1.5.5.tgz
 
+pip install pyrouge
 echo 'export ROUGE_EVAL_HOME="$ROUGE_EVAL_HOME:/home/ubuntu/rouge/RELEASE-1.5.5/data"' >> ~/.profile
 source ~/.profile
+cd ~/
+pyrouge_set_rouge_path ~/rouge/RELEASE-1.5.5
+
