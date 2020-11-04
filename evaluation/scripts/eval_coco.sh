@@ -6,4 +6,4 @@ TRUTH_FILE=~/CommonsenseReasoning/dataset/final_data/commongen/commongen.${TYPE}
 PRED_FILE=~/CommonsenseReasoning/methods/unilm_based/decoded_sentences/${TYPE}
 
 cd ~/CommonsenseReasoning/evaluation/Traditional/eval_metrics
-~/anaconda3/envs/unilm_env/bin/python eval.py --key_file ${INPUT_FILE} --gts_file ${TRUTH_FILE} --res_file ${PRED_FILE} >> ~/results.txt
+python2 eval.py --key_file ${INPUT_FILE} --gts_file ${TRUTH_FILE} --res_file ${PRED_FILE} >> ~/results.txt
