@@ -217,7 +217,14 @@ def main():
                         help="Sharing segment embeddings for the encoder of S2S (used with --s2s_add_segment).")
     parser.add_argument('--pos_shift', action='store_true',
                         help="Using position shift for fine-tuning.")
-
+    parser.add_argument("--eval_src_file", default=None, type=str,
+                        help="The eval input data file name.")
+    parser.add_argument("--eval_tgt_file", default=None, type=str,
+                        help="The eval output data file name.")
+    parser.add_argument("--eval_cs_file", default=None, type=str,
+                        help="The eval cs data file name.")
+    parser.add_argument("--eval_exp_file", default=None, type=str,
+                        help="The eval exp data file name.")
     args = parser.parse_args()
     print(args.model_recover_path)
     assert Path(args.model_recover_path).exists(
@@ -300,7 +307,28 @@ def main():
             _batch_size = args.train_batch_size // dist.get_world_size()
         train_dataloader = torch.utils.data.DataLoader(train_dataset, batch_size=_batch_size, sampler=train_sampler,
                                                        num_workers=args.num_workers, collate_fn=seq2seq_loader.batch_list_to_batch_tensors, pin_memory=False)
-
+    if args.do_eval:
+        eval_fn_src = os.path.join(
+            args.data_dir, args.eval_src_file if args.eval_src_file else 'dev.src')
+        eval_fn_tgt = os.path.join(
+            args.data_dir, args.eval_tgt_file if args.eval_tgt_file else 'dev.tgt')
+        eval_fn_cs = os.path.join(
+            args.data_dir, args.eval_cs_file if args.eval_cs_file else 'dev.cs')
+        eval_fn_exp = os.path.join(
+            args.data_dir, args.eval_exp_file if args.exp_file else 'dev.exp')
+        eval_dataset = seq2seq_loader.Seq2SeqDataset(
+            eval_fn_src, eval_fn_tgt, eval_fn_cs, eval_fn_exp, args.train_batch_size, data_tokenizer, args.max_seq_length,\
+                 file_oracle=None, bi_uni_pipeline=bi_uni_pipeline)
+        if args.local_rank == -1:
+            eval_sampler = RandomSampler(eval_dataset, replacement=False)
+            _batch_size = args.train_batch_size
+        else:
+            eval_sampler = DistributedSampler(eval_dataset)
+            _batch_size = args.train_batch_size // dist.get_world_size()
+        eval_dataloader = torch.utils.data.DataLoader(eval_dataset, batch_size=_batch_size, sampler=eval_sampler,
+                                                       num_workers=args.num_workers, collate_fn=\
+                                                       seq2seq_loader.batch_list_to_batch_tensors,
+                                                       pin_memory=False)
     # note: args.train_batch_size has been changed to (/= args.gradient_accumulation_steps)
     # t_total = int(math.ceil(len(train_dataset.ex_list) / args.train_batch_size)
     t_total = int(len(train_dataloader) * args.num_train_epochs /
@@ -429,6 +457,7 @@ def main():
             iter_bar = tqdm(train_dataloader, desc='Iter (loss=X.XXX)',
                             disable=args.local_rank not in (-1, 0))
             for step, batch in enumerate(iter_bar):
+                model.train()
                 batch = [
                     t.to(device) if t is not None else None for t in batch]
                 if args.has_sentence_oracle:
@@ -489,7 +518,36 @@ def main():
 
                 logger.info("***** CUDA.empty_cache() *****")
                 torch.cuda.empty_cache()
+                model.eval()
+                eval_iter_bar = tqdm(eval_dataloader, desc='Eval Iter (loss=X.XXX)',
+                            disable=args.local_rank not in (-1, 0))
+                eval_loss=0
+                for step, batch in enumerate(eval_iter_bar):
+                    batch = [
+                        t.to(device) if t is not None else None for t in batch]
+                    if args.has_sentence_oracle:
+                        input_ids, segment_ids, input_mask, token_a_mask, mask_qkv, lm_label_ids, masked_pos, masked_weights, is_next, task_idx, oracle_pos, oracle_weights, oracle_labels,cs_inp, cs_mask, cs_mask_full = batch
+                    else:
+                        input_ids, segment_ids, input_mask, token_a_mask, mask_qkv, lm_label_ids, masked_pos, masked_weights, is_next, task_idx,cs_inp, cs_mask = batch
+                        oracle_pos, oracle_weights, oracle_labels = None, None, None
 
+                    loss_tuple = model(input_ids, segment_ids, input_mask, token_a_mask, lm_label_ids, is_next,
+                                   masked_pos=masked_pos, masked_weights=masked_weights, task_idx=task_idx, 
+                                   masked_pos_2=oracle_pos, masked_weights_2=oracle_weights,
+                                   masked_labels_2=oracle_labels, mask_qkv=mask_qkv,
+                                   concepts=cs_inp, concepts_mask=cs_mask)
+                    masked_lm_loss, next_sentence_loss = loss_tuple
+                    if n_gpu > 1:    # mean() to average on multi-gpu.
+                        # loss = loss.mean()
+                        masked_lm_loss = masked_lm_loss.mean()
+                        next_sentence_loss = next_sentence_loss.mean()
+                    loss = masked_lm_loss + next_sentence_loss
+                    eval_loss+=loss.item()
+                    # logging for each step (i.e., before normalization by args.gradient_accumulation_steps)
+                    eval_iter_bar.set_description('Eval Iter (loss=%5.3f)' % loss.item())
+                logger.info("Eval loss = %5.3f"%(eval_loss/len(eval_iter_bar)))
+                logger.info("***** CUDA.empty_cache() *****")
+                torch.cuda.empty_cache()
 
 if __name__ == "__main__":
     main()
