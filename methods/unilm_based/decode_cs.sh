@@ -8,7 +8,7 @@ python unilm/src/biunilm/decode_seq2seq.py --bert_model bert-large-cased --new_s
 --cs_input ${DATA_DIR}/commongen.${EVAL_SPLIT}.cs_rel.txt --exp_file ${DATA_DIR}/commongen.${EVAL_SPLIT}.exp.txt \
 --input_file ${DATA_DIR}/commongen.${EVAL_SPLIT}.src_alpha.txt --split ${EVAL_SPLIT} --model_recover_path ${MODEL_RECOVER_PATH} \
 --max_seq_length 64 --max_tgt_length 32 \
---batch_size 1 --beam_size 5 --length_penalty 0 \
+--batch_size 32 --beam_size 5 --length_penalty 0 \
 --forbid_duplicate_ngrams --forbid_ignore_word "."
 
 
