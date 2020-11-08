@@ -117,8 +117,8 @@ def score(candidate, reference, concepts, ori_concepts, parser="spacy", scoring=
 
         cur_dep_cand, coverage_cand, coverage_cand_pos = get_k_hop_links_fast(cand, cs, ori_cs, k=5)
         cur_dep_ref, _, _ = get_k_hop_links_fast(ref, cs, ori_cs, k=5)
-        print("cur_dep_cand:", cur_dep_cand)
-        print("cur_dep_ref:", cur_dep_ref)
+        #print("cur_dep_cand:", cur_dep_cand)
+        #print("cur_dep_ref:", cur_dep_ref)
         intersect = cur_dep_cand & cur_dep_ref
 
         if not len(cur_dep_ref):
