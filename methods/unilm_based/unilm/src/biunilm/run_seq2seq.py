@@ -508,10 +508,10 @@ def main():
                 model_to_save = model.module if hasattr(
                     model, 'module') else model  # Only save the model it-self
                 output_model_file = os.path.join(
-                    args.output_dir, "model.{0}.bin".format(i_epoch))
+                    args.output_dir, "model.bin")
                 torch.save(model_to_save.state_dict(), output_model_file)
                 output_optim_file = os.path.join(
-                    args.output_dir, "optim.{0}.bin".format(i_epoch))
+                    args.output_dir, "optim.bin")
                 torch.save(optimizer.state_dict(), output_optim_file)
 
                 logger.info("***** CUDA.empty_cache() *****")
