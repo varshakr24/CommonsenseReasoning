@@ -24,6 +24,10 @@ from pytorch_pretrained_bert.optimization import BertAdam, warmup_linear
 from nn.data_parallel import DataParallelImbalance
 import biunilm.seq2seq_loader as seq2seq_loader
 
+import json
+from nltk.stem.snowball import SnowballStemmer
+stemmer = SnowballStemmer("english")
+
 from commonsense_mapping import COMMONSENSE_MAPPING
 import json 
 
@@ -260,6 +264,12 @@ def main():
                 for instance in [(x[0], max_a_len, x[1][0], x[1][1]) for x in buf]:
                     for proc in bi_uni_pipeline:
                         instances.append(proc(instance))
+
+                input_tokens_dict = {}
+                for i in range(len(instances)):
+                    for j in range(len(buf[i])):
+                        input_tokens_dict[instances[i][0][j+1]]=buf[i][j]
+
                 with torch.no_grad():
                     batch = seq2seq_loader.batch_list_to_batch_tensors(
                         instances)
@@ -275,19 +285,58 @@ def main():
                         output_ids = traces['pred_seq']
                     else:
                         output_ids = traces.tolist()
-                    for i in range(len(buf)):
-                        w_ids = output_ids[i]
-                        output_buf = tokenizer.convert_ids_to_tokens(w_ids)
-                        output_tokens = []
-                        for t in output_buf:
-                            if t in ("[SEP]", "[PAD]"):
-                                break
-                            output_tokens.append(t)
-                        output_sequence = ' '.join(detokenize(output_tokens))
-                        output_lines[buf_id[i]] = output_sequence
-                        if args.need_score_traces:
-                            score_trace_list[buf_id[i]] = {
-                                'scores': traces['scores'][i], 'wids': traces['wids'][i], 'ptrs': traces['ptrs'][i]}
+
+
+                    output_sentences=[]
+                    #print("buffer len= ",str(len(buf)))
+                    #print("output len= ",str(len(output_ids)))
+                    for i in range(0,len(output_ids),4):
+                            w_ids_set = output_ids[i:i+4]
+                            input_token_ids=input_ids[i//4].cpu().numpy()[1:-1]
+                            #print(buf[i//4])
+                            #print(input_token_ids)
+                            input_tokens = []
+                            for j in input_token_ids:
+                                if j ==102:
+                                    break
+                                input_tokens.append(stemmer.stem(input_tokens_dict[j]))
+                                input_tokens = ' '.join(input_tokens).replace(" ##","").split(' ')
+                            coverage_score=-1
+                            for w_ids in w_ids_set:
+                                output_buf = tokenizer.convert_ids_to_tokens(w_ids)
+                                output_tokens = []
+                                for t in output_buf:
+                                    if t in ("[SEP]", "[PAD]"):
+                                        break
+                                    output_tokens.append(t)
+                                output_tokens=detokenize(output_tokens)
+                                score_tokens=[stemmer.stem(t) for t in output_tokens]
+                                score_tokens = ' '.join(score_tokens).replace(" ##","").split(' ')
+                                curr_score = len(set(score_tokens).intersection(input_tokens))
+                                if curr_score>coverage_score:
+                                    coverage_score=curr_score
+                                    output_sequence = ' '.join(output_tokens)
+
+
+                            '''
+                            token_buf = data_tokenizer.convert_ids_to_tokens(input_ids[i][1:])
+                            token_tokens = []
+                            for t in token_buf:
+                                if t in ("[SEP]", "[PAD]"):
+                                    break
+                                token_tokens.append(t)
+                            token_sequence = ' '.join(detokenize(token_tokens))
+                            print(token_sequence)
+                            '''
+
+                            #output_sentences.append(output_sequence)
+                            output_lines[buf_id[i//4]] = output_sequence
+                            if args.need_score_traces:
+                                score_trace_list[buf_id[i//4]] = {
+                                    'scores': traces['scores'][i//4], 'wids': traces['wids'][i//4], 'ptrs': traces['ptrs'][i//4]}
+
+
+
                 pbar.update(1)
         if args.output_file:
             fn_out = args.output_file

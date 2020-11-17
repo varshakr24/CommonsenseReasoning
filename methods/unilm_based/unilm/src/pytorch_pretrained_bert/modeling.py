@@ -21,6 +21,7 @@ from torch import nn
 from torch.nn import CrossEntropyLoss, MSELoss
 import torch.nn.functional as F
 import pytorch_pretrained_bert.hykas as hykas
+import heapq
 
 from .file_utils import cached_path
 from .loss import LabelSmoothingLoss
@@ -1732,9 +1733,11 @@ class BertForSeq2SeqDecoder(PreTrainedBertModel):
                 if all(wid == self.eos_id for wid in wids):
                     last_frame_id = i
                     break
-            max_score = -math.inf
+            max_score = []#-math.inf
             frame_id = -1
             pos_in_frame = -1
+
+            ids={}
 
             for fid in range(last_frame_id + 1):
                 for i, wid in enumerate(wids_list[fid]):
@@ -1743,20 +1746,38 @@ class BertForSeq2SeqDecoder(PreTrainedBertModel):
                         if self.length_penalty > 0:
                             s /= math.pow((5 + fid + 1) / 6.0,
                                           self.length_penalty)
-                        if s > max_score:
-                            max_score = s
+                        if len(max_score)<4:
+                            heapq.heappush(max_score, s)
+                            #s > max_score:
+                            #max_score = s
                             frame_id = fid
-                            pos_in_frame = i
+
+                            #pos_in_frame = i
+                        else:
+                            heapq.heappushpop(max_score, s)
+                        ids[s]=(fid,i)
+
+            max_score = heapq.heappop(max_score)
+            ids = [v for k, v in ids.items() if k>=max_score]
+
             if frame_id == -1:
                 traces['pred_seq'].append([0])
             else:
-                seq = [wids_list[frame_id][pos_in_frame]]
-                for fid in range(frame_id, 0, -1):
-                    pos_in_frame = ptrs[fid][pos_in_frame]
-                    seq.append(wids_list[fid - 1][pos_in_frame])
-                seq.reverse()
-                traces['pred_seq'].append(seq)
-
+                for k, v in ids:
+                    #print(k,v)
+                    frame_id=k
+                    pos_in_frame=v
+                    #print(len(wids_list), len(wids_list[0]), len(wids_list[:][0]))
+                    seq = [wids_list[frame_id][pos_in_frame]]
+                    #print(seq)
+                    #print(frame_id, pos_in_frame)
+                    for fid in range(frame_id, 0, -1):
+                        pos_in_frame = ptrs[fid][pos_in_frame]
+                        seq.append(wids_list[fid - 1][pos_in_frame])
+                    seq.reverse()
+                    #print(seq)
+                    traces['pred_seq'].append(seq)
+        
         def _pad_sequence(sequences, max_len, padding_value=0):
             trailing_dims = sequences[0].size()[1:]
             out_dims = (len(sequences), max_len) + trailing_dims
