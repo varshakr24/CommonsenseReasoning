@@ -2,8 +2,11 @@ import json
 from nltk.stem.snowball import SnowballStemmer
 stemmer = SnowballStemmer("english")
 #filename = "Downloads/t.jsonl"
-predfile = "model.10.bin.test"
-csstrfile = "commongen.test.cs_str.txt"
+csstrfile="../../dataset/final_data/commongen/commongen.test.cs_str.txt"
+PRED_FILE="~/CommonsenseReasoning/methods/unilm_based/decoded_sentences/test"
+
+predfile = "../../methods/unilm_based/tmp/finetuned_models/bert_save/model.bin.test"
+
 preds = []
 inp = []
 with open(predfile,'r') as o:

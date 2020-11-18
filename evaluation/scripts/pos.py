@@ -11,8 +11,9 @@ nlp = spacy.load('en_core_web_sm')
  
 
 stemmer = SnowballStemmer("english")
-predfile = "Row1.test"
-csstrfile = "commongen.test.cs_str.txt"
+csstrfile="../../dataset/final_data/commongen/commongen.test.cs_str.txt"
+predfile = "../../methods/unilm_based/tmp/finetuned_models/bert_save/model.bin.test"
+
 pred_words = []
 pred_pos = []
 inp_words = []
