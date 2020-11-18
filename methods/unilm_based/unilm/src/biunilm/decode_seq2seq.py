@@ -265,11 +265,14 @@ def main():
                     for proc in bi_uni_pipeline:
                         instances.append(proc(instance))
 
-                input_tokens_dict = {}
-                for i in range(len(instances)):
-                    for j in range(len(buf[i])):
-                        input_tokens_dict[instances[i][0][j+1]]=buf[i][j]
+                #print("instances",instances[0][0])
+                #print()
+                #input_tokens_dict = {}
+                #for i in range(len(instances)):
+                #    for j in range(len(buf[i])):
+                #        input_tokens_dict[instances[i][0][j+1]]=buf[i][j]
 
+                #print(input_tokens_dict)
                 with torch.no_grad():
                     batch = seq2seq_loader.batch_list_to_batch_tensors(
                         instances)
@@ -277,9 +280,12 @@ def main():
                         t.to(device) if t is not None else None for t in batch]
                     input_ids, token_type_ids, position_ids, input_mask, tok_a_mask, mask_qkv, task_idx, cs_inp, cs_mask = batch
 
+                    #print("cs_inp",cs_inp[0])
+                    #print("cs_mask",cs_mask[0])
                     traces = model(input_ids, token_type_ids,
                                    position_ids, input_mask, tok_a_mask, task_idx=task_idx, mask_qkv=mask_qkv,
                                    concepts=cs_inp,concepts_mask=cs_mask)
+                    #print(input_ids)
                     if args.beam_size > 1:
                         traces = {k: v.tolist() for k, v in traces.items()}
                         output_ids = traces['pred_seq']
@@ -292,16 +298,19 @@ def main():
                     #print("output len= ",str(len(output_ids)))
                     for i in range(0,len(output_ids),4):
                             w_ids_set = output_ids[i:i+4]
-                            input_token_ids=input_ids[i//4].cpu().numpy()[1:-1]
-                            #print(buf[i//4])
-                            #print(input_token_ids)
-                            input_tokens = []
+                            input_tokens=buf[i//4][0]
+                            '''
                             for j in input_token_ids:
                                 if j ==102:
                                     break
+                                print(input_tokens_dict[j])
                                 input_tokens.append(stemmer.stem(input_tokens_dict[j]))
-                                input_tokens = ' '.join(input_tokens).replace(" ##","").split(' ')
+                            '''
+                            input_tokens = ' '.join(input_tokens).replace(" ##","").split(' ')
+                            input_tokens = [stemmer.stem(t) for t in input_tokens]
+                            #print(input_tokens)
                             coverage_score=-1
+                            
                             for w_ids in w_ids_set:
                                 output_buf = tokenizer.convert_ids_to_tokens(w_ids)
                                 output_tokens = []
@@ -310,14 +319,18 @@ def main():
                                         break
                                     output_tokens.append(t)
                                 output_tokens=detokenize(output_tokens)
+                                
                                 score_tokens=[stemmer.stem(t) for t in output_tokens]
-                                score_tokens = ' '.join(score_tokens).replace(" ##","").split(' ')
+                                #score_tokens = ' '.join(score_tokens).replace(" ##","").split(' ')
                                 curr_score = len(set(score_tokens).intersection(input_tokens))
                                 if curr_score>coverage_score:
                                     coverage_score=curr_score
                                     output_sequence = ' '.join(output_tokens)
+                                
 
+                                    #print(curr_score, score_tokens,' '.join(output_tokens))
 
+                            #print("\n\n")
                             '''
                             token_buf = data_tokenizer.convert_ids_to_tokens(input_ids[i][1:])
                             token_tokens = []
