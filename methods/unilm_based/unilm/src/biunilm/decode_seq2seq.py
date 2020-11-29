@@ -27,6 +27,29 @@ import biunilm.seq2seq_loader as seq2seq_loader
 import json
 from nltk.stem.snowball import SnowballStemmer
 stemmer = SnowballStemmer("english")
+import spacy
+nlp = spacy.load('en_core_web_sm')
+
+def match_pos(line):
+    line=line+" ."
+    line=nlp(line)
+    tags=[]
+    print(line)
+    for t in line:
+        print(t.lemma_, t.pos_)
+        pos = t.pos_
+        t = t.lemma_
+        if pos.startswith('J'):
+            tags.extend([t,"A"])
+        elif pos.startswith('V'):
+            tags.extend([t, "V"])
+        elif pos.startswith('N'):
+            tags.extend([t,"N"])
+        elif pos.startswith('R'):
+            tags.extend([t,"A"])
+    
+    it = iter(tags)
+    return dict(zip(it, it))
 
 from commonsense_mapping import COMMONSENSE_MAPPING
 import json 
@@ -236,6 +259,14 @@ def main():
             if args.subset > 0:
                 logger.info("Decoding subset: %d", args.subset)
                 input_lines = input_lines[:args.subset]
+        
+        pos_file = args.input_file.replace("src_alpha.txt","cs_str.txt")
+        with open(pos_file, encoding="utf-8") as fin:
+            pos_lines = [x.strip() for x in fin.readlines()]
+            if args.subset > 0:
+                logger.info("Decoding subset: %d", args.subset)
+                pos_lines = pos_lines[:args.subset] 
+
         with open(args.cs_input, encoding="utf-8") as cs_fin:
             cs_input_lines = [x.strip() for x in cs_fin.readlines()]
             if args.subset > 0:
@@ -245,8 +276,15 @@ def main():
         input_lines = [data_tokenizer.tokenize(
             x)[:max_src_length] for x in input_lines]
         cs_input_lines = [cs_tokenize(x,data_tokenizer) for x in cs_input_lines]
-        zipped = list(zip(input_lines,cs_input_lines))
         
+        pos_lines = [x.replace('_','#').split("#") for x in pos_lines]
+        
+        for i, x in enumerate(pos_lines):
+            it = iter(x)
+            pos_lines[i] = dict(zip(it, it))
+        
+        zipped = list(zip(input_lines,cs_input_lines, pos_lines))
+
         input_lines = sorted(list(enumerate(zipped)),
                              key=lambda x: -len(x[1][0]))
         output_lines = [""] * len(input_lines)
@@ -280,12 +318,9 @@ def main():
                         t.to(device) if t is not None else None for t in batch]
                     input_ids, token_type_ids, position_ids, input_mask, tok_a_mask, mask_qkv, task_idx, cs_inp, cs_mask = batch
 
-                    #print("cs_inp",cs_inp[0])
-                    #print("cs_mask",cs_mask[0])
                     traces = model(input_ids, token_type_ids,
                                    position_ids, input_mask, tok_a_mask, task_idx=task_idx, mask_qkv=mask_qkv,
                                    concepts=cs_inp,concepts_mask=cs_mask)
-                    #print(input_ids)
                     if args.beam_size > 1:
                         traces = {k: v.tolist() for k, v in traces.items()}
                         output_ids = traces['pred_seq']
@@ -294,11 +329,11 @@ def main():
 
 
                     output_sentences=[]
-                    #print("buffer len= ",str(len(buf)))
-                    #print("output len= ",str(len(output_ids)))
                     for i in range(0,len(output_ids),4):
                             w_ids_set = output_ids[i:i+4]
                             input_tokens=buf[i//4][0]
+                            input_pos = buf[i//4][2]
+
                             '''
                             for j in input_token_ids:
                                 if j ==102:
@@ -308,11 +343,15 @@ def main():
                             '''
                             input_tokens = ' '.join(input_tokens).replace(" ##","").split(' ')
                             input_tokens = [stemmer.stem(t) for t in input_tokens]
-                            #print(input_tokens)
                             coverage_score=-1
                             
                             for w_ids in w_ids_set:
                                 output_buf = tokenizer.convert_ids_to_tokens(w_ids)
+                                tmp_buf = output_buf
+                                tmp_buf = ' '.join(list(filter(lambda a: a not in ["[SEP]", "[PAD]"], tmp_buf))).replace(" ##","")
+                                pos_tags = match_pos(tmp_buf)
+                                pos_score = len([k for k in input_pos if k in pos_tags])
+
                                 output_tokens = []
                                 for t in output_buf:
                                     if t in ("[SEP]", "[PAD]"):
@@ -322,25 +361,17 @@ def main():
                                 
                                 score_tokens=[stemmer.stem(t) for t in output_tokens]
                                 #score_tokens = ' '.join(score_tokens).replace(" ##","").split(' ')
-                                curr_score = len(set(score_tokens).intersection(input_tokens))
+                                count_score = len(set(score_tokens).intersection(input_tokens))
+                                curr_score = count_score + pos_score
                                 if curr_score>coverage_score:
                                     coverage_score=curr_score
                                     output_sequence = ' '.join(output_tokens)
                                 
 
-                                    #print(curr_score, score_tokens,' '.join(output_tokens))
+                                    #print(curr_score,'=',pos_score,'+',count_score)
+                                    #print(score_tokens,' '.join(output_tokens))
 
                             #print("\n\n")
-                            '''
-                            token_buf = data_tokenizer.convert_ids_to_tokens(input_ids[i][1:])
-                            token_tokens = []
-                            for t in token_buf:
-                                if t in ("[SEP]", "[PAD]"):
-                                    break
-                                token_tokens.append(t)
-                            token_sequence = ' '.join(detokenize(token_tokens))
-                            print(token_sequence)
-                            '''
 
                             #output_sentences.append(output_sequence)
                             output_lines[buf_id[i//4]] = output_sequence
